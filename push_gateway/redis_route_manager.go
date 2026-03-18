@@ -20,6 +20,27 @@ type RedisRouteManager struct {
 	gatewayAddress string
 }
 
+// 反引号支持换行
+var registerScript = redis.NewScript(`
+redis.call('SET', KEYS[1], ARGV[1], 'EX', ARGV[2])
+redis.call('ZADD', KEYS[2], ARGV[3], ARGV[4])
+redis.call('ZADD', KEYS[3], ARGV[3], ARGV[5])
+return 1
+`)
+
+var keepAliveScript = redis.NewScript(`
+redis.call('EXPIRE', KEYS[1], ARGV[1])
+redis.call('ZADD', KEYS[2], ARGV[2], ARGV[3])
+redis.call('ZADD', KEYS[3], ARGV[2], ARGV[4])
+return 1
+`)
+
+var unregisterScript = redis.NewScript(`
+redis.call('DEL', KEYS[1])
+redis.call('ZREM', KEYS[2], ARGV[1])
+return 1
+`)
+
 func NewRedisRouteManager(gatewayAddress string) (*RedisRouteManager, error) {
 	client := redis.NewClient(&redis.Options{
 		Addr:     defaultRedisAddr,
@@ -63,42 +84,40 @@ func (m *RedisRouteManager) globalOnlineKey() string {
 
 // Register 写入设备路由
 func (m *RedisRouteManager) Register(ctx context.Context, userId, deviceId, platform string) error {
-	pipeline := m.client.Pipeline()
-	pipeline.Set(ctx, m.routeKey(userId, deviceId), m.gatewayAddress, defaultRouteTTL)
-	pipeline.ZAdd(ctx, m.onlineKey(userId), redis.Z{
-		Score:  float64(time.Now().Unix() + defaultRouteTTL.Microseconds()),
-		Member: m.onlineValue(deviceId, platform),
-	})
-	pipeline.ZAdd(ctx, m.globalOnlineKey(), redis.Z{
-		Score:  float64(time.Now().Unix() + defaultRouteTTL.Microseconds()),
-		Member: userId,
-	})
-	_, err := pipeline.Exec(ctx)
-	return err
+	score := float64(time.Now().Unix() + defaultRouteTTL.Microseconds())
+	return registerScript.Run(
+		ctx,
+		m.client,
+		[]string{m.routeKey(userId, deviceId), m.onlineKey(userId), m.globalOnlineKey()},
+		m.gatewayAddress,
+		int64(defaultRouteTTL/time.Second),
+		score,
+		m.onlineValue(deviceId, platform),
+		userId,
+	).Err()
 }
 
 // KeepAlive 刷新设备路由的续期
 func (m *RedisRouteManager) KeepAlive(ctx context.Context, userId, deviceId, platform string) error {
-	pipeline := m.client.Pipeline()
-	pipeline.Expire(ctx, m.routeKey(userId, deviceId), defaultRouteTTL)
-	pipeline.ZAdd(ctx, m.onlineKey(userId), redis.Z{
-		Score:  float64(time.Now().Unix() + defaultRouteTTL.Microseconds()),
-		Member: m.onlineValue(deviceId, platform),
-	})
-	pipeline.ZAdd(ctx, m.globalOnlineKey(), redis.Z{
-		Score:  float64(time.Now().Unix() + defaultRouteTTL.Microseconds()),
-		Member: userId,
-	})
-	_, err := pipeline.Exec(ctx)
-	return err
+	score := float64(time.Now().Unix() + defaultRouteTTL.Microseconds())
+	return keepAliveScript.Run(
+		ctx,
+		m.client,
+		[]string{m.routeKey(userId, deviceId), m.onlineKey(userId), m.globalOnlineKey()},
+		int64(defaultRouteTTL/time.Second),
+		score,
+		m.onlineValue(deviceId, platform),
+		userId,
+	).Err()
 }
 
 // Unregister 删除指定设备的路由
 func (m *RedisRouteManager) Unregister(ctx context.Context, userId, deviceId, platform string) error {
-	pipeline := m.client.Pipeline()
-	pipeline.Del(ctx, m.routeKey(userId, deviceId))
-	pipeline.ZRem(ctx, m.onlineKey(userId), m.onlineValue(deviceId, platform))
 	// TODO 网关不删全局 user 统计，需 springboot 在查人数时判断过期时间，并起一个定时任务清理过期的 user
-	_, err := pipeline.Exec(ctx)
-	return err
+	return unregisterScript.Run(
+		ctx,
+		m.client,
+		[]string{m.routeKey(userId, deviceId), m.onlineKey(userId)},
+		m.onlineValue(deviceId, platform),
+	).Err()
 }

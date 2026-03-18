@@ -118,16 +118,14 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	userId := r.URL.Query().Get("userId")
 	deviceId := r.URL.Query().Get("deviceId")
 	platform := r.URL.Query().Get("platform")
+	// TODO 测试环境，随机分配 userId，默认分配 deviceId 和 platform，后续为必填
 	if userId == "" {
-		// TODO 测试环境，随机分配一个 userId，后续 userId 为必填
 		userId = uuid.New().String()
 	}
 	if deviceId == "" {
-		// TODO 测试环境，默认分配一个 deviceId，后续 deviceId 为必填
 		deviceId = "default"
 	}
 	if platform == "" {
-		// TODO 测试环境，默认分配一个 platform，后续 platform 为必填
 		platform = "default"
 	}
 
