@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"log"
 	"math/rand/v2"
@@ -192,11 +193,10 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 			log.Printf("续命 websocket 连接失败 userId=%s deviceId=%s err=%v\n", userId, deviceId, err)
 			return err
 		}
-		err = routeManager.KeepAlive(userId, deviceId, platform, client.ConnID)
+		err = routeManager.KeepAlive(userId, deviceId, platform, client)
 		if err != nil {
-			if errors.Is(err, ErrRouteOwnershipLost) {
-				log.Printf("连接被顶掉，准备断开 userId=%s deviceId=%s connId=%s\n", userId, deviceId, client.ConnID)
-				_ = client.Close()
+			if errors.Is(err, ErrKeepAliveQueueFull) {
+				log.Printf("keepalive 队列满，续期失败 userId=%s deviceId=%s\n", userId, deviceId)
 				return err
 			}
 			log.Printf("续命 Redis 失败 userId=%s deviceId=%s err=%v\n", userId, deviceId, err)
@@ -206,7 +206,6 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	})
 
 	// 开启一个专属的 Goroutine，定时给客户端发 Ping 包
-	// TODO 心跳风暴
 	go func() {
 		ticker := time.NewTicker(pingPeriod)
 		defer ticker.Stop()
@@ -298,6 +297,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("初始化 Redis 路由管理器失败: %v", err)
 	}
+	// 初始化成功后，启动心跳续命聚合器
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go routeManager.keepAliveAggregatorLoop(ctx)
 	log.Println("成功连接到 Redis，路由管理器已初始化")
 
 	// 定义路由：当请求 /ws 时，交给 wsHandler 处理

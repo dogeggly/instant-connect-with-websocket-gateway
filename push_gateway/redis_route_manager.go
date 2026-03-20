@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"strconv"
 	"time"
 
@@ -20,6 +21,9 @@ const (
 	registerTimeout      = 2 * time.Second
 	keepAliveTimeout     = 2 * time.Second
 	unregisterTimeout    = 5 * time.Second
+	keepAliveFlushPeriod = 1 * time.Second
+	keepAliveBatchSize   = 500
+	keepAliveQueueSize   = 5000
 )
 
 type RedisRouteManager struct {
@@ -27,7 +31,17 @@ type RedisRouteManager struct {
 	gatewayAddress string
 }
 
-var ErrRouteOwnershipLost = errors.New("route ownership lost")
+type keepAliveRequest struct {
+	userId   string
+	deviceId string
+	platform string
+	client   *Client
+	offset   int64
+}
+
+var ErrKeepAliveQueueFull = errors.New("keepalive channel is full")
+
+var keepAliveChannel = make(chan keepAliveRequest, keepAliveQueueSize)
 
 func NewRedisRouteManager(gatewayAddress string) (*RedisRouteManager, error) {
 	client := redis.NewClient(&redis.Options{
@@ -85,8 +99,38 @@ func (m *RedisRouteManager) globalOnlineOffset(userId string) (int64, error) {
 	return uid - bitmapBaseUserID, nil
 }
 
-func withTimeoutContext(timeout time.Duration) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.Background(), timeout)
+func (m *RedisRouteManager) keepAliveAggregatorLoop(ctx context.Context) {
+	ticker := time.NewTicker(keepAliveFlushPeriod)
+	defer ticker.Stop()
+
+	batch := make([]keepAliveRequest, 0, keepAliveBatchSize)
+
+	flush := func() {
+		if len(batch) == 0 {
+			return
+		}
+		m.flushKeepAliveBatch(batch)
+		// 清空 batch 切片，冒号左边默认为 0，右边默认为 len，左开右闭
+		batch = batch[:0]
+	}
+
+	for {
+		select {
+		case req := <-keepAliveChannel:
+			batch = append(batch, req)
+			// 消息堆积了 500 条也统一发一次请求
+			if len(batch) >= keepAliveBatchSize {
+				flush()
+			}
+		// 每隔一秒钟统一发一次请求
+		case <-ticker.C:
+			flush()
+		// 优雅停机，先把积压的续期请求都发完
+		case <-ctx.Done():
+			flush()
+			return
+		}
+	}
 }
 
 // Register 写入设备路由
@@ -102,7 +146,7 @@ return 1
 `)
 
 func (m *RedisRouteManager) Register(userId, deviceId, platform, connID string) error {
-	ctx, cancel := withTimeoutContext(registerTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), registerTimeout)
 	defer cancel()
 
 	offset, err := m.globalOnlineOffset(userId)
@@ -142,34 +186,78 @@ end
 return 1
 `)
 
-func (m *RedisRouteManager) KeepAlive(userId, deviceId, platform, connID string) error {
-	ctx, cancel := withTimeoutContext(keepAliveTimeout)
+func (m *RedisRouteManager) flushKeepAliveBatch(batch []keepAliveRequest) {
+	ctx, cancel := context.WithTimeout(context.Background(), keepAliveTimeout)
 	defer cancel()
 
+	pipe := m.client.Pipeline()
+
+	type keepAliveCmdResult struct {
+		cmd    *redis.Cmd
+		userId string
+		device string
+		client *Client
+	}
+	// 用于接收批量命令的结果，关联 userId 和 deviceId，方便后续处理
+	cmds := make([]keepAliveCmdResult, 0, len(batch))
+
+	for _, req := range batch {
+		now := time.Now()
+		score := float64(now.Add(defaultRouteTTL).Unix())
+		cmd := keepAliveScript.Run(
+			ctx,
+			pipe,
+			[]string{m.routeKey(req.userId, req.deviceId), m.onlineKey(req.userId), m.globalOnlineKey(now)},
+			m.routeValue(req.client.ConnID),
+			int64(defaultRouteTTL/time.Second),
+			score,
+			m.onlineValue(req.deviceId, req.platform),
+			req.offset,
+			int64(defaultBitmapTTL/time.Second),
+		)
+		cmds = append(cmds, keepAliveCmdResult{
+			cmd:    cmd,
+			userId: req.userId,
+			device: req.deviceId,
+			client: req.client,
+		})
+	}
+
+	_, err := pipe.Exec(ctx)
+	if err != nil && !errors.Is(err, redis.Nil) {
+		log.Printf("keepalive 批量 pipeline 执行失败 err=%v", err)
+	}
+
+	for _, item := range cmds {
+		result, err := item.cmd.Int64()
+		if err != nil {
+			log.Printf("keepalive 批量续期命令失败 userId=%s deviceId=%s err=%v", item.userId, item.device, err)
+			continue
+		}
+		if result == -1 {
+			log.Printf("连接被顶掉，批量续期阶段断开 userId=%s deviceId=%s", item.userId, item.device)
+			_ = item.client.Close()
+		}
+	}
+}
+
+func (m *RedisRouteManager) KeepAlive(userId, deviceId, platform string, client *Client) error {
 	offset, err := m.globalOnlineOffset(userId)
 	if err != nil {
 		return err
 	}
-	now := time.Now()
-	score := float64(now.Add(defaultRouteTTL).Unix())
-	result, err := keepAliveScript.Run(
-		ctx,
-		m.client,
-		[]string{m.routeKey(userId, deviceId), m.onlineKey(userId), m.globalOnlineKey(now)},
-		m.routeValue(connID),
-		int64(defaultRouteTTL/time.Second),
-		score,
-		m.onlineValue(deviceId, platform),
-		offset,
-		int64(defaultBitmapTTL/time.Second),
-	).Int64()
-	if err != nil {
-		return err
+	select {
+	case keepAliveChannel <- keepAliveRequest{
+		userId:   userId,
+		deviceId: deviceId,
+		platform: platform,
+		client:   client,
+		offset:   offset,
+	}:
+		return nil
+	default:
+		return ErrKeepAliveQueueFull
 	}
-	if result == -1 {
-		return ErrRouteOwnershipLost
-	}
-	return nil
 }
 
 // Unregister 删除指定设备的路由
@@ -187,7 +275,7 @@ return 1
 `)
 
 func (m *RedisRouteManager) Unregister(userId, deviceId, platform, connID string) error {
-	ctx, cancel := withTimeoutContext(unregisterTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), unregisterTimeout)
 	defer cancel()
 
 	// TODO 如果网关挂了，需要处理 zset 里的分数过期，打算后端开定时任务解决
@@ -202,7 +290,7 @@ func (m *RedisRouteManager) Unregister(userId, deviceId, platform, connID string
 		return err
 	}
 	if result == -1 {
-		return ErrRouteOwnershipLost
+		return fmt.Errorf("连接已被顶掉")
 	}
 	return nil
 }
