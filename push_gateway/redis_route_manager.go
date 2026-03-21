@@ -15,8 +15,9 @@ const (
 	defaultRedisAddr     = "127.0.0.1:6379"
 	defaultRedisPassword = ""
 	defaultRedisDB       = 3
-	defaultRouteTTL      = 60 * time.Second
-	defaultBitmapTTL     = 3 * time.Minute
+	connRedisTimeout     = 5 * time.Second
+	routeTTL             = 60 * time.Second
+	bitmapTTL            = 3 * time.Minute
 	bitmapBaseUserID     = 10001
 	registerTimeout      = 2 * time.Second
 	keepAliveTimeout     = 2 * time.Second
@@ -51,16 +52,28 @@ func NewRedisRouteManager(gatewayAddress string) (*RedisRouteManager, error) {
 	})
 
 	// 测试连接
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := client.Ping(ctx).Err(); err != nil {
-		return nil, err
+	{
+		ctx, cancel := context.WithTimeout(context.Background(), connRedisTimeout)
+		defer cancel()
+		if err := client.Ping(ctx).Err(); err != nil {
+			return nil, err
+		}
 	}
 
-	return &RedisRouteManager{
+	manager := &RedisRouteManager{
 		client:         client,
 		gatewayAddress: gatewayAddress,
-	}, nil
+	}
+
+	// 加载 keepalive 脚本
+	{
+		ctx, cancel := context.WithTimeout(context.Background(), connRedisTimeout)
+		defer cancel()
+		if err := keepAliveScript.Load(ctx, manager.client).Err(); err != nil {
+			return nil, err
+		}
+	}
+	return manager, nil
 }
 
 // redis 的 kv 设计：
@@ -154,17 +167,17 @@ func (m *RedisRouteManager) Register(userId, deviceId, platform, connID string) 
 		return err
 	}
 	now := time.Now()
-	score := float64(now.Add(defaultRouteTTL).Unix())
+	score := float64(now.Add(routeTTL).Unix())
 	return registerScript.Run(
 		ctx,
 		m.client,
 		[]string{m.routeKey(userId, deviceId), m.onlineKey(userId), m.globalOnlineKey(now)},
 		m.routeValue(connID),
-		int64(defaultRouteTTL/time.Second),
+		int64(routeTTL/time.Second),
 		score,
 		m.onlineValue(deviceId, platform),
 		offset,
-		int64(defaultBitmapTTL/time.Second),
+		int64(bitmapTTL/time.Second),
 	).Err()
 }
 
@@ -203,17 +216,17 @@ func (m *RedisRouteManager) flushKeepAliveBatch(batch []keepAliveRequest) {
 
 	for _, req := range batch {
 		now := time.Now()
-		score := float64(now.Add(defaultRouteTTL).Unix())
+		score := float64(now.Add(routeTTL).Unix())
 		cmd := keepAliveScript.Run(
 			ctx,
 			pipe,
 			[]string{m.routeKey(req.userId, req.deviceId), m.onlineKey(req.userId), m.globalOnlineKey(now)},
 			m.routeValue(req.client.ConnID),
-			int64(defaultRouteTTL/time.Second),
+			int64(routeTTL/time.Second),
 			score,
 			m.onlineValue(req.deviceId, req.platform),
 			req.offset,
-			int64(defaultBitmapTTL/time.Second),
+			int64(bitmapTTL/time.Second),
 		)
 		cmds = append(cmds, keepAliveCmdResult{
 			cmd:    cmd,
@@ -226,6 +239,15 @@ func (m *RedisRouteManager) flushKeepAliveBatch(batch []keepAliveRequest) {
 	_, err := pipe.Exec(ctx)
 	if err != nil && !errors.Is(err, redis.Nil) {
 		log.Printf("keepalive 批量 pipeline 执行失败 err=%v", err)
+		// 检测脚本是否失效（Redis 重启导致）
+		if err.Error() == "NOSCRIPT No matching script. Please use EVAL." {
+			log.Printf("检测到 Redis 脚本缓存失效，重新加载 keepalive 脚本")
+			ctx, cannel := context.WithTimeout(context.Background(), connRedisTimeout)
+			defer cannel()
+			if err = keepAliveScript.Load(ctx, m.client).Err(); err != nil {
+				log.Printf("keepalive 脚本重新加载失败 err=%v", err)
+			}
+		}
 	}
 
 	for _, item := range cmds {
