@@ -96,14 +96,14 @@ func (m *ConnectionManager) Remove(userId string, deviceId string, client *Clien
 }
 
 // Get 获取指定用户的连接 (读操作，用读锁 RLock，只有当所有读锁释放后，才能上写锁)
-func (m *ConnectionManager) Get(userId string, deviceId string) (*Client, bool) {
+func (m *ConnectionManager) Get(userId string) (map[string]*Client, bool) {
 	m.RLock()
 	defer m.RUnlock()
 	if m.connections[userId] == nil {
 		return nil, false
 	}
-	client, exist := m.connections[userId][deviceId]
-	return client, exist
+	clientMap, exist := m.connections[userId]
+	return clientMap, exist
 }
 
 // 实例化一个全局的连接管理器
@@ -252,32 +252,31 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 func pushHandler(w http.ResponseWriter, r *http.Request) {
 	// 解析参数
 	userId := r.URL.Query().Get("userId")
-	deviceId := r.URL.Query().Get("deviceId")
-	platform := r.URL.Query().Get("platform")
 	msg := r.URL.Query().Get("msg")
-	if userId == "" || msg == "" || deviceId == "" || platform == "" {
+	if userId == "" || msg == "" {
 		http.Error(w, "参数不完整", http.StatusBadRequest)
 		return
 	}
 
 	// 从我们的内存管理器中寻找这个用户
-	client, exists := manager.Get(userId, deviceId)
+	clientMap, exists := manager.Get(userId)
 	if !exists {
 		// 用户不在线（未连在这个网关上）
 		http.Error(w, "用户不在线", http.StatusNotFound)
 		return
 	}
 
-	log.Printf("收到用户 %s(%s) 消息: %s\n", userId, deviceId, msg)
+	log.Printf("收到用户 %s 消息: %s\n", userId, msg)
 
 	// 找到了！把消息推送下去
-	err := client.WriteMessage(websocket.TextMessage, []byte(msg))
-	if err != nil {
-		http.Error(w, "推送失败", http.StatusInternalServerError)
-		return
+	for _, client := range clientMap {
+		err := client.WriteMessage(websocket.TextMessage, []byte(msg))
+		if err != nil {
+			log.Printf("推送消息失败 userId=%s err=%v\n", userId, err)
+		}
 	}
 
-	_, err = w.Write([]byte("推送成功!"))
+	_, err := w.Write([]byte("推送成功!"))
 	if err != nil {
 		http.Error(w, "推送成功，但响应失败", http.StatusInternalServerError)
 	}

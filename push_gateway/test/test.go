@@ -19,7 +19,7 @@ func main() {
 
 	for i := 0; i < maxConnections; i++ {
 		go func(id int) {
-			url := fmt.Sprintf("ws://%s%s/ws?userId=bot_%d", targetIp, port, id)
+			url := fmt.Sprintf("ws://%s%s/ws?userId=%d", targetIp, port, id + 10001)
 
 			// 拨号连接网关
 			conn, _, err := websocket.DefaultDialer.Dial(url, nil)
