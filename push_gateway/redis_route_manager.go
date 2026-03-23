@@ -10,16 +10,16 @@ import (
 )
 
 const (
-	defaultRedisAddr     = "127.0.0.1:6379"
-	defaultRedisPassword = ""
-	defaultRedisDB       = 3
-	connRedisTimeout     = 5 * time.Second
-	routeTTL             = 60 * time.Second
-	bitmapTTL            = 3 * time.Minute
-	bitmapBaseUserID     = 10001
-	registerTimeout      = 2 * time.Second
-	keepAliveTimeout     = 5 * time.Second
-	unregisterTimeout    = 2 * time.Second
+	defaultRedisAddr = "127.0.0.1:6379"
+
+	defaultRedisDB    = 3
+	connRedisTimeout  = 5 * time.Second
+	routeTTL          = 60 * time.Second
+	bitmapTTL         = 3 * time.Minute
+	bitmapBaseUserID  = 10001
+	registerTimeout   = 2 * time.Second
+	keepAliveTimeout  = 5 * time.Second
+	unregisterTimeout = 2 * time.Second
 )
 
 type RedisRouteManager struct {

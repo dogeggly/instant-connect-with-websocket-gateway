@@ -20,12 +20,11 @@ const (
 	queuePrefix  = "queue.gateway.node"
 	mqAddress    = "192.168.1.100:5672"
 	username     = "dogeggly"
-	password     = "512218"
 )
 
 func StartConsumer() error {
 	// 1. 建立与 RabbitMQ 的单路 TCP 连接
-	mqURL := fmt.Sprintf("amqp://%s:%s@%s", username, password, mqAddress)
+	mqURL := fmt.Sprintf("amqp://%s:%s@%s", username, defalutMqPassword, mqAddress)
 	conn, err := amqp.Dial(mqURL)
 	if err != nil {
 		return err

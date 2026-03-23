@@ -4,3 +4,4 @@
 
 # 敏感配置文件（密码、密钥等）
 **/application-secret.yml
+**/secret.go
