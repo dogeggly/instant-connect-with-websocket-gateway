@@ -2,17 +2,18 @@ package com.dely.instant_connect.controller;
 
 import cn.hutool.core.lang.Snowflake;
 import cn.hutool.core.util.StrUtil;
+import com.dely.instant_connect.config.RabbitmqConfig;
 import com.dely.instant_connect.config.Result;
 import com.dely.instant_connect.entity.Messages;
 import com.dely.instant_connect.service.IMessagesService;
-import com.dely.instant_connect.config.PushGatewayClient;
 import lombok.extern.slf4j.Slf4j;
 import org.postgresql.util.PSQLException;
+import org.postgresql.util.ServerErrorMessage;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -40,7 +41,7 @@ public class MessagesController {
     private StringRedisTemplate stringRedisTemplate;
 
     @Autowired
-    private PushGatewayClient pushGatewayClient;
+    private RabbitTemplate rabbitTemplate;
 
     @Autowired
     private Snowflake snowflake;
@@ -60,26 +61,31 @@ public class MessagesController {
         // 2. 幂等落库 (req_id 可能重复)
         try {
             iMessagesService.save(message);
-        } catch (DuplicateKeyException e) {
+        } catch (DataIntegrityViolationException e) {
             if (isReqIdDuplicate(e)) {
                 log.warn("消息重复提交 reqId={}", message.getReqId());
                 return Result.fail(409, "消息重复提交");
             }
-            throw e;
         }
 
         // 3. 先查 ws:online:{userId}，拿到所有在线设备 deviceId|platform
         String onlineKey = "ws:online:" + receiverId;
         Set<ZSetOperations.TypedTuple<String>> onlineMembers = stringRedisTemplate.opsForZSet().rangeWithScores(onlineKey, 0, -1);
-        if (onlineMembers != null && !onlineMembers.isEmpty()) {
+        if (onlineMembers == null || onlineMembers.isEmpty()) {
             // TODO 还没处理离线状态
             return Result.fail(404, "接收方离线");
         }
 
         Set<String> routeKeys = new HashSet<>();
+        long nowTimestamp = System.currentTimeMillis();
 
         // 4. 再查 ws:route:{userId}:{deviceId}，拿网关地址后直推 /api/push
         for (ZSetOperations.TypedTuple<String> member : onlineMembers) {
+            Double score = member.getScore();
+            if (score == null || score.longValue() < nowTimestamp) {
+                continue;
+            }
+
             String deviceWithPlatform = member.getValue();
             if (StrUtil.isBlank(deviceWithPlatform)) {
                 continue;
@@ -106,15 +112,22 @@ public class MessagesController {
                 continue;
             }
             String[] routeParts = routeValue.split("\\|", 2);
-            String gatewayAddress = routeParts[0];
-            if (StrUtil.isBlank(gatewayAddress)) {
+            String gatewayId = routeParts[0];
+            if (StrUtil.isBlank(gatewayId)) {
                 continue;
             }
-            pushTargets.add(gatewayAddress);
+            pushTargets.add(RabbitmqConfig.GATEWAY_QUEUE + "-" + gatewayId);
         }
 
-        for (String gatewayAddress : pushTargets) {
-            pushGatewayClient.push(gatewayAddress, message.getContent());
+        Map<String, Object> pushPayload = new HashMap<>();
+        pushPayload.put("userId", message.getSenderId());
+        pushPayload.put("msg", message.getContent());
+
+        for (String gatewayQueue : pushTargets) {
+            rabbitTemplate.convertAndSend(
+                    RabbitmqConfig.GATEWAY_EXCHANGE,
+                    gatewayQueue,
+                    pushPayload);
         }
 
         return Result.success(msgId);
@@ -123,11 +136,18 @@ public class MessagesController {
     private boolean isReqIdDuplicate(Throwable throwable) {
         Throwable current = throwable;
         while (current != null) {
+            // 匹配 PG 底层异常
             if (current instanceof PSQLException pgException) {
-                String sqlState = pgException.getSQLState();
-                if ("23505".equals(sqlState)) {
-                    String message = pgException.getMessage();
-                    return message != null && message.contains("idx_messages_req_id");
+                // 1. 确认是唯一约束冲突 (SQLState 23505)
+                if ("23505".equals(pgException.getSQLState())) {
+                    // 2. 获取 PG 服务端结构化错误信息
+                    ServerErrorMessage serverError = pgException.getServerErrorMessage();
+                    if (serverError != null) {
+                        // 3. 精准提取发生冲突的约束/索引名，彻底告别字符串截取！
+                        String constraintName = serverError.getConstraint();
+                        // 4. 精确比对
+                        return "idx_messages_req_id".equals(constraintName);
+                    }
                 }
             }
             current = current.getCause();
@@ -135,5 +155,3 @@ public class MessagesController {
         return false;
     }
 }
-
-// TODO 审查GlobalExceptionHandler，PushGatewayClient，SnowflakeConfig

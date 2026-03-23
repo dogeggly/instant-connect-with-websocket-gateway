@@ -6,7 +6,10 @@ import com.dely.instant_connect.config.JwtProperties;
 import com.dely.instant_connect.config.Result;
 import com.dely.instant_connect.entity.Users;
 import com.dely.instant_connect.service.IUsersService;
+import org.postgresql.util.PSQLException;
+import org.postgresql.util.ServerErrorMessage;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -51,7 +54,15 @@ public class UsersController {
         if (hasUser) return Result.fail("用户已存在，换个用户名");
 
         users.setPasswordHash(DigestUtil.md5Hex(password));
-        iUsersService.save(users);
+        // 仍然会有并发写入风险
+        try {
+            iUsersService.save(users);
+        } catch (DataIntegrityViolationException e) {
+            if (isUsernameDuplicate(e)) {
+                return Result.fail(409, "用户已存在，换个用户名");
+            }
+        }
+
         return Result.success();
     }
 
@@ -88,6 +99,28 @@ public class UsersController {
         // 没有加入分页逻辑，可以让前端传上一个相似度，然后查10条大于这个相似度的数据
         List<Users> userList = iUsersService.findByUsername(username);
         return Result.success(userList.stream().map(Users::getUsername).toList());
+    }
+
+    private boolean isUsernameDuplicate(Throwable throwable) {
+        Throwable current = throwable;
+        while (current != null) {
+            // 匹配 PG 底层异常
+            if (current instanceof PSQLException pgException) {
+                // 1. 确认是唯一约束冲突 (SQLState 23505)
+                if ("23505".equals(pgException.getSQLState())) {
+                    // 2. 获取 PG 服务端结构化错误信息
+                    ServerErrorMessage serverError = pgException.getServerErrorMessage();
+                    if (serverError != null) {
+                        // 3. 精准提取发生冲突的约束/索引名，彻底告别字符串截取！
+                        String constraintName = serverError.getConstraint();
+                        // 4. 精确比对
+                        return "idx_users_username".equals(constraintName);
+                    }
+                }
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 
 }
