@@ -21,38 +21,38 @@ public class SnowflakeConfig {
     @Value("${snowflake.datacenter-id}")
     private long DATACENTER_ID;
 
-    private static final String WORKER_LOCK_KEY_PREFIX = "ic:snowflake:worker_id:";
-    private static final Duration LOCK_TTL = Duration.ofSeconds(30);
-    private static final long HEARTBEAT_CYCLE = 15000L;
+    private static final String NODE_LOCK_KEY_PREFIX = "ic:node_id:";
+    private static final long NODE_LOCK_TTL = 30L; // 秒
+    private static final long HEARTBEAT_CYCLE = 20000L; // 毫秒
 
     @Autowired
-    private StringRedisTemplate redisTemplate;
+    private StringRedisTemplate stringRedisTemplate;
 
     @Bean
     public Snowflake snowflake() {
         String lockOwner = UUID.randomUUID().toString();
-        long workerId = acquireWorkerId(lockOwner);
-        log.info("已获取本机器的雪花 workerId: {}", workerId);
+        long nodeId = acquireNodeId(lockOwner);
+        log.info("已获取本机器的 nodeId: {}", nodeId);
 
         // 开启心跳续期
-        startHeartbeatThread(workerId, lockOwner);
+        startHeartbeatThread(nodeId, lockOwner);
 
-        return IdUtil.getSnowflake(workerId, DATACENTER_ID);
+        return IdUtil.getSnowflake(nodeId, DATACENTER_ID);
     }
 
-    // SETNX 抢占 workerId
-    private long acquireWorkerId(String lockOwner) {
+    // SETNX 抢占 nodeId
+    private long acquireNodeId(String lockOwner) {
         for (long candidate = 0; candidate < 32; candidate++) {
-            String lockKey = WORKER_LOCK_KEY_PREFIX + candidate;
-            Boolean locked = redisTemplate.opsForValue().setIfAbsent(lockKey, lockOwner, LOCK_TTL);
+            String lockKey = NODE_LOCK_KEY_PREFIX + candidate;
+            Boolean locked = stringRedisTemplate.opsForValue().setIfAbsent(lockKey, lockOwner, Duration.ofSeconds(NODE_LOCK_TTL));
             if (Boolean.TRUE.equals(locked)) {
                 return candidate;
             }
         }
-        throw new IllegalStateException("没有足够的雪花 workerId 了");
+        throw new IllegalStateException("没有足够的 nodeId(0-31) 了");
     }
 
-    private void startHeartbeatThread(Long workerId, String lockOwner) {
+    private void startHeartbeatThread(Long nodeId, String lockOwner) {
         Thread heartbeat = new Thread(() -> {
             while (true) {
                 try {
@@ -60,16 +60,16 @@ public class SnowflakeConfig {
                 } catch (InterruptedException e) {
                     // 恢复中断标志
                     Thread.currentThread().interrupt();
-                    throw new IllegalStateException("雪花 workerId 锁续期线程退出", e);
+                    throw new IllegalStateException("nodeId 锁续期线程退出", e);
                 }
-                String lockKey = WORKER_LOCK_KEY_PREFIX + workerId;
+                String lockKey = NODE_LOCK_KEY_PREFIX + nodeId;
                 Long renewed = renewLockIfOwned(lockKey, lockOwner);
                 if (renewed == 0L) {
                     log.error("雪花 workerId 锁被抢占, key={}, owner={}", lockKey, lockOwner);
                     return;
                 }
             }
-        }, "snowflake-worker-heartbeat");
+        }, "snowflake-nodeId-heartbeat");
         // 标记为守护线程，当 jvm 中只有守护线程时会直接退出
         heartbeat.setDaemon(true);
         heartbeat.start();
@@ -83,11 +83,11 @@ public class SnowflakeConfig {
                         "else return 0 end"
         );
         script.setResultType(Long.class);
-        return redisTemplate.execute(
+        return stringRedisTemplate.execute(
                 script,
                 List.of(lockKey),
                 lockOwner,
-                String.valueOf(LOCK_TTL)
+                String.valueOf(NODE_LOCK_TTL)
         );
     }
 

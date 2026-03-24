@@ -1,39 +1,41 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
+	"strconv"
 
 	"github.com/gorilla/websocket"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
-type PushPayload struct {
+type pushPayLoad struct {
 	UserId string `json:"userId"`
 	Msg    string `json:"msg"`
 }
 
 const (
-	exchangeName = "ic.gateway.direct.exchange"
+	exchangeName = "ic.direct.exchange"
 	exchangeType = "direct"
-	queuePrefix  = "queue.gateway.node"
-	mqAddress    = "192.168.1.100:5672"
-	username     = "dogeggly"
+	queuePrefix  = "ws.queue.node"
+	mqAddr       = "192.168.100.131:5672"
+	mqUsername   = "dogeggly"
 )
 
-func StartConsumer() error {
+func initMqConsumer() (*amqp.Connection, *amqp.Channel, <-chan amqp.Delivery, error) {
 	// 1. 建立与 RabbitMQ 的单路 TCP 连接
-	mqURL := fmt.Sprintf("amqp://%s:%s@%s", username, defalutMqPassword, mqAddress)
+	mqURL := fmt.Sprintf("amqp://%s:%s@%s", mqUsername, mqPassword, mqAddr)
 	conn, err := amqp.Dial(mqURL)
 	if err != nil {
-		return err
+		return nil, nil, nil, err
 	}
 
 	// 2. 在 TCP 连接上开启一个轻量级的 Channel
 	ch, err := conn.Channel()
 	if err != nil {
-		return err
+		return nil, nil, nil, err
 	}
 
 	// 3. 声明总交换机
@@ -48,14 +50,13 @@ func StartConsumer() error {
 		nil,
 	)
 	if err != nil {
-		return err
+		return nil, nil, nil, err
 	}
 
 	// 4. 声明网关节点的【专属排他队列】
-	queueName := fmt.Sprintf("%s-%d", queuePrefix, workerID)
-
+	queueName := fmt.Sprintf("%s-%d", queuePrefix, nodeId)
 	// 参数：name, durable, autoDelete, exclusive, noWait, args
-	q, err := ch.QueueDeclare(
+	_, err = ch.QueueDeclare(
 		queueName,
 		false, // durable: 临时队列，不需要持久化到磁盘
 		true,  // autoDelete: true! 网关断开时，MQ 自动删掉这个队列
@@ -64,57 +65,54 @@ func StartConsumer() error {
 		nil,
 	)
 	if err != nil {
-		return err
+		return nil, nil, nil, err
 	}
 
 	// 5. 将队列绑定到总交换机上
 	// 参数：name, key, exchange, noWait, args
 	err = ch.QueueBind(
-		q.Name,
-		string(workerID), // 路由键就是你的 nodeID
+		queueName,
+		strconv.FormatInt(nodeId, 10), // 路由键就是你的 nodeID
 		exchangeName,
 		false,
 		nil,
 	)
 	if err != nil {
-		return err
+		return nil, nil, nil, err
 	}
 
 	// 6. 开始消费当前节点专属队列
 	// 参数：queue, consumer, autoAck, exclusive, noLocal, noWait, args
 	deliveries, err := ch.Consume(
-		q.Name,
-		"",
+		queueName,
+		strconv.FormatInt(nodeId, 10),
 		true,
-		false,
+		true,
 		false,
 		false,
 		nil,
 	)
 	if err != nil {
-		return err
+		return nil, nil, nil, err
 	}
 
-	// 7. 开启专属 goroutine 持续消费消息
-	go func() {
-		defer func() {
-			_ = ch.Close()
-			_ = conn.Close()
-		}()
+	return conn, ch, deliveries, nil
+}
 
-		for d := range deliveries {
+func startMqConsumer(ctx context.Context, deliveries <-chan amqp.Delivery) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case d := <-deliveries:
 			handlePushMessage(d)
 		}
-
-		log.Println("MQ 投递通道已关闭，停止消费")
-	}()
-
-	return nil
+	}
 }
 
 // handlePushMessage 处理单条推送逻辑
 func handlePushMessage(d amqp.Delivery) {
-	var payload PushPayload
+	var payload pushPayLoad
 	err := json.Unmarshal(d.Body, &payload)
 	if err != nil {
 		log.Printf("解析 MQ 消息失败: %v", err)
@@ -125,7 +123,7 @@ func handlePushMessage(d amqp.Delivery) {
 
 	log.Printf("收到业务层下发指令 -> userId: %s, msg: %s", payload.UserId, payload.Msg)
 
-	clientMap, exists := manager.Get(payload.UserId)
+	clientMap, exists := cm.get(payload.UserId)
 	if !exists {
 		log.Printf("目标用户不在当前网关节点，userId=%s", payload.UserId)
 		d.Ack(false)

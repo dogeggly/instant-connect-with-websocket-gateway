@@ -1,3 +1,5 @@
+// 测试时使用，后续改为 mq 接收下行消息
+
 package main
 
 import (
@@ -19,7 +21,7 @@ func pushHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 从我们的内存管理器中寻找这个用户
-	clientMap, exists := manager.Get(userId)
+	clientMap, exists := cm.get(userId)
 	if !exists {
 		// 用户不在线（未连在这个网关上）
 		http.Error(w, "用户不在线", http.StatusNotFound)

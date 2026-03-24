@@ -10,27 +10,23 @@ import (
 )
 
 const (
-	defaultRedisAddr = "127.0.0.1:6379"
-
-	defaultRedisDB    = 3
-	connRedisTimeout  = 5 * time.Second
-	routeTTL          = 60 * time.Second
-	bitmapTTL         = 3 * time.Minute
-	bitmapBaseUserID  = 10001
-	registerTimeout   = 2 * time.Second
-	keepAliveTimeout  = 5 * time.Second
-	unregisterTimeout = 2 * time.Second
+	redisAddr        = "127.0.0.1:6379"
+	redisDB          = 3
+	connRedisTimeout = 2 * time.Second
+	routeTTL         = 60 * time.Second
+	bitmapTTL        = 3 * time.Minute
+	bitmapBaseUserID = 10001
 )
 
-type RedisRouteManager struct {
-	client *redis.Client
+type redisManager struct {
+	*redis.Client
 }
 
-func NewRedisRouteManager() (*RedisRouteManager, error) {
+func newRedisManager() (*redisManager, error) {
 	client := redis.NewClient(&redis.Options{
-		Addr:     defaultRedisAddr,
-		Password: defaultRedisPassword,
-		DB:       defaultRedisDB,
+		Addr:     redisAddr,
+		Password: redisPassword,
+		DB:       redisDB,
 	})
 
 	// 测试连接
@@ -42,45 +38,46 @@ func NewRedisRouteManager() (*RedisRouteManager, error) {
 		}
 	}
 
-	manager := &RedisRouteManager{client: client}
-
 	// 加载 keepalive 脚本
 	{
 		ctx, cancel := context.WithTimeout(context.Background(), connRedisTimeout)
 		defer cancel()
-		if err := keepAliveScript.Load(ctx, manager.client).Err(); err != nil {
+		if err := keepAliveScript.Load(ctx, client).Err(); err != nil {
 			return nil, err
 		}
 	}
-	return manager, nil
+
+	rm := &redisManager{Client: client}
+
+	return rm, nil
 }
 
 // redis 的 kv 设计：
-// ws:route:{userId}:{deviceId} -> workerId|connId (过期时间 60s)
+// ws:route:{userId}:{deviceId} -> nodeId|connId (过期时间 60s)
 // ws:online:{userId} -> ZSet (过期时间 60s，成员是 deviceId|platform，分数是过期时间戳)
-// ws:global:online:{localTime} -> BitMap
+// ws:global:{localTime} -> BitMap
 
-func (m *RedisRouteManager) routeKey(userId, deviceId string) string {
+func (rm *redisManager) routeKey(userId, deviceId string) string {
 	return fmt.Sprintf("ws:route:%s:%s", userId, deviceId)
 }
 
-func (m *RedisRouteManager) routeValue(connID string) string {
-	return fmt.Sprintf("%d|%s", workerID, connID)
+func (rm *redisManager) routeValue(connID string) string {
+	return fmt.Sprintf("%d|%s", nodeId, connID)
 }
 
-func (m *RedisRouteManager) onlineKey(userId string) string {
+func (rm *redisManager) onlineKey(userId string) string {
 	return fmt.Sprintf("ws:online:%s", userId)
 }
 
-func (m *RedisRouteManager) onlineValue(deviceId, platform string) string {
+func (rm *redisManager) onlineValue(deviceId, platform string) string {
 	return fmt.Sprintf("%s|%s", deviceId, platform)
 }
 
-func (m *RedisRouteManager) globalOnlineKey(now time.Time) string {
-	return fmt.Sprintf("ws:global:online:%s", now.Format("200601021504"))
+func (rm *redisManager) globalOnlineKey(now time.Time) string {
+	return fmt.Sprintf("ws:global:%s", now.Format("200601021504"))
 }
 
-func (m *RedisRouteManager) globalOnlineOffset(userId string) (int64, error) {
+func (rm *redisManager) globalOnlineOffset(userId string) (int64, error) {
 	uid, err := strconv.ParseInt(userId, 10, 64)
 	if err != nil {
 		return 0, fmt.Errorf("userId 不是有效数字: %w", err)
@@ -91,7 +88,7 @@ func (m *RedisRouteManager) globalOnlineOffset(userId string) (int64, error) {
 	return uid - bitmapBaseUserID, nil
 }
 
-// Register 写入设备路由
+// register 写入设备路由
 // 反引号支持换行
 var registerScript = redis.NewScript(`
 redis.call('SET', KEYS[1], ARGV[1], 'EX', ARGV[2])
@@ -103,11 +100,11 @@ end
 return 1
 `)
 
-func (m *RedisRouteManager) Register(userId, deviceId, platform, connID string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), registerTimeout)
+func (rm *redisManager) register(userId, deviceId, platform, connID string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), connRedisTimeout)
 	defer cancel()
 
-	offset, err := m.globalOnlineOffset(userId)
+	offset, err := rm.globalOnlineOffset(userId)
 	if err != nil {
 		return err
 	}
@@ -115,18 +112,18 @@ func (m *RedisRouteManager) Register(userId, deviceId, platform, connID string) 
 	score := float64(now.Add(routeTTL).Unix())
 	return registerScript.Run(
 		ctx,
-		m.client,
-		[]string{m.routeKey(userId, deviceId), m.onlineKey(userId), m.globalOnlineKey(now)},
-		m.routeValue(connID),
+		rm,
+		[]string{rm.routeKey(userId, deviceId), rm.onlineKey(userId), rm.globalOnlineKey(now)},
+		rm.routeValue(connID),
 		int64(routeTTL/time.Second),
 		score,
-		m.onlineValue(deviceId, platform),
+		rm.onlineValue(deviceId, platform),
 		offset,
 		int64(bitmapTTL/time.Second),
 	).Err()
 }
 
-// KeepAlive 刷新设备路由的续期
+// keepAlive 刷新设备路由的续期
 var keepAliveScript = redis.NewScript(`
 local current = redis.call('GET', KEYS[1])
 if not current then
@@ -144,8 +141,8 @@ end
 return 1
 `)
 
-func (m *RedisRouteManager) KeepAlive(userId, deviceId, platform string, client *Client) error {
-	offset, err := m.globalOnlineOffset(userId)
+func (rm *redisManager) keepAlive(userId, deviceId, platform string, client *client) error {
+	offset, err := rm.globalOnlineOffset(userId)
 	if err != nil {
 		return err
 	}
@@ -154,16 +151,16 @@ func (m *RedisRouteManager) KeepAlive(userId, deviceId, platform string, client 
 		userId:   userId,
 		deviceId: deviceId,
 		platform: platform,
-		client:   client,
 		offset:   offset,
+		client:   client,
 	}:
 		return nil
 	default:
-		return ErrKeepAliveQueueFull
+		return errKeepAliveQueueFull
 	}
 }
 
-// Unregister 删除指定设备的路由
+// unregister 删除指定设备的路由
 var unregisterScript = redis.NewScript(`
 local current = redis.call('GET', KEYS[1])
 if not current then
@@ -177,17 +174,17 @@ redis.call('ZREM', KEYS[2], ARGV[2])
 return 1
 `)
 
-func (m *RedisRouteManager) Unregister(userId, deviceId, platform, connID string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), unregisterTimeout)
+func (rm *redisManager) unregister(userId, deviceId, platform, connID string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), connRedisTimeout)
 	defer cancel()
 
 	// TODO 如果网关挂了，需要处理 zset 里的分数过期，打算后端开定时任务解决
 	result, err := unregisterScript.Run(
 		ctx,
-		m.client,
-		[]string{m.routeKey(userId, deviceId), m.onlineKey(userId)},
-		m.routeValue(connID),
-		m.onlineValue(deviceId, platform),
+		rm,
+		[]string{rm.routeKey(userId, deviceId), rm.onlineKey(userId)},
+		rm.routeValue(connID),
+		rm.onlineValue(deviceId, platform),
 	).Int64()
 	if err != nil {
 		return err

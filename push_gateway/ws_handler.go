@@ -54,45 +54,45 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	connID := snowflakeNode.Generate().String()
-	client := &Client{Conn: conn, ConnID: connID}
+	c := &client{Conn: conn, connID: connID}
 	// 草泥马别给我处理 err 的警告了
 	defer func() {
-		_ = client.Close()
+		_ = c.Close()
 	}()
 
 	// 注册连接到内存管理器
-	manager.Add(userId, deviceId, client)
-	defer manager.Remove(userId, deviceId, client)
+	cm.add(userId, deviceId, c)
+	defer cm.remove(userId, deviceId, c)
 
 	// 注册路由到 Redis
-	if err = routeManager.Register(userId, deviceId, platform, client.ConnID); err != nil {
+	if err = rm.register(userId, deviceId, platform, c.connID); err != nil {
 		log.Printf("Redis 注册失败，拒绝连接 userId=%s deviceId=%s err=%v\n", userId, deviceId, err)
 	}
 	defer func() {
-		if err = routeManager.Unregister(userId, deviceId, platform, client.ConnID); err != nil {
+		if err = rm.unregister(userId, deviceId, platform, c.connID); err != nil {
 			log.Printf("Redis 注销失败 userId=%s deviceId=%s err=%v\n", userId, deviceId, err)
 		}
 	}()
 
 	// 设置首次读取的绝对超时时间 (当前时间 + 60秒)
-	err = client.SetReadDeadline(time.Now().Add(pongWait))
+	err = c.SetReadDeadline(time.Now().Add(pongWait))
 	if err != nil {
 		log.Println("设置读取超时失败:", err)
 		return
 	}
 
 	// 注册 Pong 处理器：一旦收到客户端的 Pong 心跳响应，就续命 60 秒！
-	client.SetPongHandler(func(_ string) error {
+	c.SetPongHandler(func(_ string) error {
 		// 调试时开启
 		// log.Printf("收到 %s 的心跳 Pong 响应，为其续命...\n", userId)
-		err = client.SetReadDeadline(time.Now().Add(pongWait))
+		err = c.SetReadDeadline(time.Now().Add(pongWait))
 		if err != nil {
 			log.Printf("续命 websocket 连接失败 userId=%s deviceId=%s err=%v\n", userId, deviceId, err)
 			return err
 		}
-		err = routeManager.KeepAlive(userId, deviceId, platform, client)
+		err = rm.keepAlive(userId, deviceId, platform, c)
 		if err != nil {
-			if errors.Is(err, ErrKeepAliveQueueFull) {
+			if errors.Is(err, errKeepAliveQueueFull) {
 				log.Printf("keepalive 队列满，续期失败 userId=%s deviceId=%s\n", userId, deviceId)
 				return err
 			}
@@ -109,7 +109,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 		for {
 			<-ticker.C // 每 45 秒执行一次
 			// 发送标准的 Ping 控制帧
-			if err := client.WriteMessage(websocket.PingMessage, nil); err != nil {
+			if err := c.WriteMessage(websocket.PingMessage, nil); err != nil {
 				return // 如果发心跳失败（说明连接已坏），退出协程
 			}
 		}
@@ -118,7 +118,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	// 开启死循环，不断读取和发送消息 (Goroutine 的轻量级体现在这里，死循环不会卡死其他用户)
 	for {
 		// 阻塞读取客户端发来的消息
-		messageType, p, err := client.ReadMessage()
+		messageType, p, err := c.ReadMessage()
 		if err != nil {
 			log.Printf("读取用户 %s(%s) 消息失败或客户端主动断开: %v\n", userId, deviceId, err)
 			break // 报错了就跳出循环，触发上面的 defer 关闭连接
@@ -126,17 +126,14 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 
 		// 实际业务不需要这段，websocket 只单向发消息
 		if messageType != 1 {
-			err = client.WriteMessage(websocket.TextMessage, []byte("目前支持发送文字帧"))
+			err = c.WriteMessage(websocket.TextMessage, []byte("目前支持发送文字帧"))
 			if err != nil {
 				log.Println("写入消息失败:", err)
 				break
 			}
 		}
-
 		log.Printf("收到用户 %s(%s) 消息: %s\n", userId, deviceId, string(p))
-
-		// 原封不动地写回给客户端
-		err = client.WriteMessage(messageType, p)
+		err = c.WriteMessage(messageType, p) // 原封不动地写回给客户端
 		if err != nil {
 			log.Println("写入消息失败:", err)
 			break

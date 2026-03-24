@@ -72,8 +72,8 @@ public class MessagesController {
         String onlineKey = "ws:online:" + receiverId;
         Set<ZSetOperations.TypedTuple<String>> onlineMembers = stringRedisTemplate.opsForZSet().rangeWithScores(onlineKey, 0, -1);
         if (onlineMembers == null || onlineMembers.isEmpty()) {
-            // TODO 还没处理离线状态
-            return Result.fail(404, "接收方离线");
+            // 说明对方离线，不做任何处理
+            return Result.success(msgId);
         }
 
         Set<String> routeKeys = new HashSet<>();
@@ -83,6 +83,7 @@ public class MessagesController {
         for (ZSetOperations.TypedTuple<String> member : onlineMembers) {
             Double score = member.getScore();
             if (score == null || score.longValue() < nowTimestamp) {
+                // 网关挂了连接没删但是已过期
                 continue;
             }
 
@@ -94,15 +95,15 @@ public class MessagesController {
             String[] deviceAndPlatform = deviceWithPlatform.split("\\|", 2);
             String deviceId = deviceAndPlatform[0];
             // 暂时还没什么用，后续可以根据平台做差异化推送
-            String platform = deviceAndPlatform[1];
+            // String platform = deviceAndPlatform[1];
 
             routeKeys.add("ws:route:" + receiverId + ":" + deviceId);
         }
 
         List<String> routeValues = stringRedisTemplate.opsForValue().multiGet(routeKeys);
         if (routeValues == null || routeValues.isEmpty()) {
-            // TODO 同上
-            return Result.fail(404, "接收方路由不存在");
+            // 在两次查 redis 的间隙连接断了，或者 route 和 online 的 ttl 有极其细微的时间差
+            return Result.success(msgId);
         }
 
         Set<String> pushTargets = new HashSet<>();
@@ -116,17 +117,17 @@ public class MessagesController {
             if (StrUtil.isBlank(gatewayId)) {
                 continue;
             }
-            pushTargets.add(RabbitmqConfig.GATEWAY_QUEUE + "-" + gatewayId);
+            pushTargets.add(gatewayId);
         }
 
         Map<String, Object> pushPayload = new HashMap<>();
         pushPayload.put("userId", message.getSenderId());
         pushPayload.put("msg", message.getContent());
 
-        for (String gatewayQueue : pushTargets) {
+        for (String gatewayId : pushTargets) {
             rabbitTemplate.convertAndSend(
                     RabbitmqConfig.GATEWAY_EXCHANGE,
-                    gatewayQueue,
+                    gatewayId,
                     pushPayload);
         }
 
