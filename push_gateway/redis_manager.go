@@ -178,7 +178,6 @@ func (rm *redisManager) unregister(userId, deviceId, platform, connID string) er
 	ctx, cancel := context.WithTimeout(context.Background(), connRedisTimeout)
 	defer cancel()
 
-	// TODO 如果网关挂了，需要处理 zset 里的分数过期，打算后端开定时任务解决
 	result, err := unregisterScript.Run(
 		ctx,
 		rm,

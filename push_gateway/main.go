@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	httpPort = ":8080"
+	httpPort = ":8082"
 	// 这里写死。
 	fixedNodeID = 1
 )
@@ -126,11 +126,16 @@ func main() {
 		log.Fatalf("初始化 Redis 路由管理器失败: %v", err)
 	}
 	// 初始化成功后，启动心跳续命聚合器
-	go rm.keepAliveAggregator(ctx)
+	go func() {
+		if err = rm.keepAliveAggregator(ctx); err != nil {
+			errCh <- err
+		}
+	}()
 	log.Println("成功连接到 Redis，路由管理器已初始化")
 
 	// 初始化网关节点
-	nodeId, lockOwner, err := initNodeId(rm)
+	var lockOwner string
+	nodeId, lockOwner, err = initNodeId(rm)
 	if err != nil {
 		log.Fatalf("初始化网关节点管理器失败: %v", err)
 	}
@@ -158,13 +163,17 @@ func main() {
 	if err != nil {
 		log.Fatalf("初始化 MQ 消息消费者失败: %v", err)
 	}
-	go startMqConsumer(ctx, deliveries)
+	go func() {
+		if err = startMqConsumer(ctx, deliveries); err != nil {
+			errCh <- err
+		}
+	}()
 	log.Println("MQ 消息消费者已启动，等待接收业务层消息...")
 
 	// 定义路由：当请求 /ws 时，交给 wsHandler 处理
 	http.HandleFunc("/ws", wsHandler)
 	// 注册推送接口，调试时开启
-	http.HandleFunc("/api/push", pushHandler)
+	// http.HandleFunc("/api/push", pushHandler)
 
 	log.Printf("WebSocket 服务端已启动在 ws://localhost%s/ws\n", httpPort)
 
@@ -178,9 +187,9 @@ func main() {
 
 	// 等待错误发生，一旦发生就退出主函数，优雅关闭所有资源
 	for {
-		errCh := <-errCh
-		if errCh != nil {
-			log.Printf("服务发生错误: %v\n", errCh)
+		err = <-errCh
+		if err != nil {
+			log.Printf("服务发生错误: %v\n", err)
 			return
 		}
 	}

@@ -15,5 +15,5 @@ import java.util.List;
  */
 public interface IUsersService extends IService<Users> {
 
-    List<Users> findByUsername(String username);
+    List<Users> searchByNickname(String username);
 }

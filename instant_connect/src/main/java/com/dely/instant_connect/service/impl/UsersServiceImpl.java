@@ -24,7 +24,7 @@ public class UsersServiceImpl extends ServiceImpl<UsersMapper, Users> implements
     private UsersMapper usersMapper;
 
     @Override
-    public List<Users> findByUsername(String username) {
-        return usersMapper.findByUsername(username);
+    public List<Users> searchByNickname(String username) {
+        return usersMapper.searchByNickname(username);
     }
 }

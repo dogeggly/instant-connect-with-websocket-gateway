@@ -2,12 +2,12 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"log"
-	"math/rand/v2"
 	"net/http"
-	"strconv"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/websocket"
 )
 
@@ -23,7 +23,7 @@ const (
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
-	// TODO 解决跨域问题。开发阶段为了方便前端连接，直接返回 true 允许所有请求。
+	// 解决跨域问题。开发阶段为了方便前端连接，直接返回 true 允许所有请求。
 	CheckOrigin: func(r *http.Request) bool {
 		return true
 	},
@@ -31,26 +31,41 @@ var upgrader = websocket.Upgrader{
 
 // 处理 WebSocket 连接的核心函数 (每个连上来的客户端都会触发这个函数)
 func wsHandler(w http.ResponseWriter, r *http.Request) {
-	// 将普通 HTTP 连接升级为全双工的 WebSocket 连接
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Println("协议升级失败:", err)
-		return
-	}
-
-	// 从 URL 查询参数中获取 userId，实际项目中可能是从 Cookie 或 JWT 中获取
-	userId := r.URL.Query().Get("userId")
-	deviceId := r.URL.Query().Get("deviceId")
-	platform := r.URL.Query().Get("platform")
-	// TODO 测试环境，随机分配 userId（10001~10100），默认分配 deviceId 和 platform，后续为必填
+	// 测试环境，从 URL 查询参数中获取 userId，或随机分配 userId（10001~10100），实际项目中从 JWT 中获取
+	/* userId := r.URL.Query().Get("userId")
 	if userId == "" {
 		userId = strconv.Itoa(10001 + rand.IntN(100))
-	}
+	} */
+
+	deviceId := r.URL.Query().Get("deviceId")
+	platform := r.URL.Query().Get("platform")
+	// 测试环境，默认分配 deviceId 和 platform，后续为前端必填
 	if deviceId == "" {
 		deviceId = "default"
 	}
 	if platform == "" {
 		platform = "default"
+	}
+
+	// 从 URL 参数中只获取 Token，不获取 userId 了
+	tokenString := r.URL.Query().Get("token")
+	if tokenString == "" {
+		http.Error(w, "token 校验失败", http.StatusUnauthorized)
+		return
+	}
+
+	// 本地 CPU 极速校验 JWT 并解析出 userId
+	userId, err := validateTokenAndGetUserId(tokenString)
+	if err != nil {
+		http.Error(w, "token 校验失败", http.StatusUnauthorized)
+		return
+	}
+
+	// 将普通 HTTP 连接升级为全双工的 WebSocket 连接
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Println("协议升级失败:", err)
+		return
 	}
 
 	connID := snowflakeNode.Generate().String()
@@ -126,7 +141,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 
 		// 实际业务不需要这段，websocket 只单向发消息
 		if messageType != 1 {
-			err = c.WriteMessage(websocket.TextMessage, []byte("目前支持发送文字帧"))
+			err = c.writeMessage(websocket.TextMessage, []byte("目前支持发送文字帧"))
 			if err != nil {
 				log.Println("写入消息失败:", err)
 				break
@@ -139,4 +154,28 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
+}
+
+// 解析 JWT 的辅助函数
+func validateTokenAndGetUserId(tokenString string) (string, error) {
+	// 解析并校验签名
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		// 确保加密算法是我们预期的 HMACHS256，即 HmacSHA256
+		if method, ok := token.Method.(*jwt.SigningMethodHMAC); !ok || method.Name != "HS256" {
+			return nil, fmt.Errorf("签名算法错误")
+		}
+		return jwtSecret, nil
+	})
+
+	if err != nil {
+		return "", err
+	}
+
+	// 从 Payload (Claims) 中提取 userId
+	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+		if userId, ok := claims["userId"].(string); ok {
+			return userId, nil
+		}
+	}
+	return "", fmt.Errorf("token 非法")
 }

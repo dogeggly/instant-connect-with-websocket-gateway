@@ -1,26 +1,32 @@
 package com.dely.instant_connect.entity;
 
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.IdType;
 
 import java.io.Serial;
 import java.time.LocalDateTime;
+
 import com.baomidou.mybatisplus.annotation.TableId;
+
 import java.io.Serializable;
+import java.util.Map;
+import java.util.UUID;
+
+import com.dely.instant_connect.config.PgJsonbTypeHandler;
+import com.dely.instant_connect.config.PgUuidTypeHandler;
 import lombok.Data;
-import lombok.EqualsAndHashCode;
-import lombok.experimental.Accessors;
 
 /**
  * <p>
- * 
+ *
  * </p>
  *
  * @author dely
  * @since 2026-03-22
  */
 @Data
-@TableName("messages")
+@TableName(value = "messages", autoResultMap = true)
 public class Messages implements Serializable {
 
     @Serial
@@ -37,9 +43,11 @@ public class Messages implements Serializable {
 
     private Integer msgType;
 
-    private String content;
+    @TableField(typeHandler = PgJsonbTypeHandler.class)
+    private Map<String, Object> content;
 
-    private String reqId;
+    @TableField(typeHandler = PgUuidTypeHandler.class)
+    private UUID reqId;
 
     private LocalDateTime createdAt;
 

@@ -27,7 +27,7 @@ var errKeepAliveQueueFull = errors.New("keepalive channel is full")
 
 var keepAliveChannel = make(chan keepAliveRequest, queueSize)
 
-func (rm *redisManager) keepAliveAggregator(ctx context.Context) {
+func (rm *redisManager) keepAliveAggregator(ctx context.Context) error {
 	ticker := time.NewTicker(flushPeriod)
 	defer ticker.Stop()
 
@@ -44,7 +44,10 @@ func (rm *redisManager) keepAliveAggregator(ctx context.Context) {
 
 	for {
 		select {
-		case req := <-keepAliveChannel:
+		case req, ok := <-keepAliveChannel:
+			if !ok {
+				return errors.New("续期通道已关闭")
+			}
 			batch = append(batch, req)
 			// 消息堆积了 500 条也统一发一次请求
 			if len(batch) >= batchSize {
@@ -56,7 +59,7 @@ func (rm *redisManager) keepAliveAggregator(ctx context.Context) {
 		// 优雅停机，先把积压的续期请求都发完
 		case <-ctx.Done():
 			flush()
-			return
+			return nil
 		}
 	}
 }

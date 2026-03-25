@@ -2,57 +2,58 @@
 <html lang="zh-CN">
 
 <head>
-  <meta charset="UTF-8">
-  <title>WebSocket 网关测试</title>
-  <style>
-      body {
-          font-family: sans-serif;
-          padding: 20px;
-      }
+    <meta charset="UTF-8">
+    <title>WebSocket 网关测试</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+        }
 
-      #output {
-          margin-top: 20px;
-          background: #f4f4f4;
-          padding: 10px;
-          border-radius: 5px;
-      }
-  </style>
+        #output {
+            margin-top: 20px;
+            background: #f4f4f4;
+            padding: 10px;
+            border-radius: 5px;
+        }
+    </style>
 </head>
 
 <body>
-<h2>Push Gateway 调试控制台</h2>
-<input type="text" id="msgInput" placeholder="输入要发送的内容"/>
-<button onclick="sendMessage()">发送到网关</button>
-<div id="output"></div>
+    <h2>Push Gateway 调试控制台</h2>
+    <input type="text" id="msgInput" placeholder="输入要发送的内容" />
+    <button onclick="sendMessage()">发送到网关</button>
+    <div id="output"></div>
 
-<script>
-    const TARGET_IP = '127.0.0.1';
-    const PORT = 8080;
+    <script>
+        const TARGET_IP = '127.0.0.1';
+        const PORT = 8081;
 
-    // 1. 拨号连接到 Go 服务端
-    const ws = new WebSocket(`ws://${TARGET_IP}:${PORT}/ws`);
-    const output = document.getElementById("output");
+        // 1. 拨号连接到 Go 服务端
+        const ws = new WebSocket(`ws://${TARGET_IP}:${PORT}/ws?userId=12349&deviceId=abcde`);
+        const output = document.getElementById("output");
 
-    function logInfo(text, color) {
-        output.innerHTML += `<div style="color: ${color}; margin: 5px 0;">${text}</div>`;
-    }
+        function logInfo(text, color) {
+            output.innerHTML += `<div style="color: ${color}; margin: 5px 0;">${text}</div>`;
+        }
 
-    // 监听连接成功事件
-    ws.onopen = () => logInfo("✅ 成功连接到 Go Push Gateway", "green");
+        // 监听连接成功事件
+        ws.onopen = () => logInfo("✅ 成功连接到 Go Push Gateway", "green");
 
-    // 监听连接断开事件
-    ws.onclose = () => logInfo("❌ 与网关的连接已断开", "red");
+        // 监听连接断开事件
+        ws.onclose = () => logInfo("❌ 与网关的连接已断开", "red");
 
-    // 监听服务端发来的消息
-    ws.onmessage = (event) => logInfo("🟢 收到服务端回传: " + event.data, "blue");
+        // 监听服务端发来的消息
+        ws.onmessage = (event) => logInfo("🟢 收到服务端回传: " + event.data, "blue");
 
-    // 点击按钮发送消息
-    function sendMessage() {
-        const msg = document.getElementById("msgInput").value;
-        if (!msg) return;
-        ws.send(msg);
-        logInfo("🔵 我发送了: " + msg, "black");
-    }
-</script>
+        // 点击按钮发送消息
+        function sendMessage() {
+            const msg = document.getElementById("msgInput").value;
+            if (!msg) return;
+            ws.send(msg);
+            logInfo("🔵 我发送了: " + msg, "black");
+        }
+    </script>
 </body>
+
 </html>

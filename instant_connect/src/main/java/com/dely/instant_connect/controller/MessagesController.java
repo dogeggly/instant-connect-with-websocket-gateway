@@ -48,7 +48,7 @@ public class MessagesController {
 
     @PostMapping("/send")
     public Result<Long> sendMessage(@RequestBody Messages message) {
-        if (message.getReceiverId() == null || message.getSenderId() == null || StrUtil.isBlank(message.getContent())) {
+        if (message.getReceiverId() == null || message.getSenderId() == null || message.getContent() == null || message.getContent().isEmpty()) {
             return Result.fail("参数不完整，receiverId 、senderId、 content 必填");
         }
 
@@ -77,7 +77,7 @@ public class MessagesController {
         }
 
         Set<String> routeKeys = new HashSet<>();
-        long nowTimestamp = System.currentTimeMillis();
+        long nowTimestamp = System.currentTimeMillis() / 1000;
 
         // 4. 再查 ws:route:{userId}:{deviceId}，拿网关地址后直推 /api/push
         for (ZSetOperations.TypedTuple<String> member : onlineMembers) {
@@ -121,14 +121,15 @@ public class MessagesController {
         }
 
         Map<String, Object> pushPayload = new HashMap<>();
-        pushPayload.put("userId", message.getSenderId());
-        pushPayload.put("msg", message.getContent());
+        pushPayload.put("userId", receiverId);
+        pushPayload.put("content", message.getContent());
 
         for (String gatewayId : pushTargets) {
             rabbitTemplate.convertAndSend(
                     RabbitmqConfig.GATEWAY_EXCHANGE,
                     gatewayId,
                     pushPayload);
+            log.info("消息 {} 发送到网关 {} 进行推送，载荷: {}", msgId, gatewayId, pushPayload);
         }
 
         return Result.success(msgId);
@@ -156,3 +157,8 @@ public class MessagesController {
         return false;
     }
 }
+
+// TODO 离线消息处理
+// TODO 审查两个 typeHandler
+// TODO token 续期
+// TODO 处理 online 用户的定时任务在多节点下有重复的问题

@@ -1,9 +1,8 @@
 package com.dely.instant_connect.controller;
 
-
 import org.springframework.web.bind.annotation.RequestMapping;
 
-import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.RestController;
 
 /**
  * <p>
@@ -13,7 +12,7 @@ import org.springframework.stereotype.Controller;
  * @author dely
  * @since 2026-03-22
  */
-@Controller
+@RestController
 @RequestMapping("/contacts")
 public class ContactsController {
 

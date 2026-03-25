@@ -23,5 +23,5 @@ public interface UsersMapper extends BaseMapper<Users> {
             "order by (username like concat('%', #{username}, '%')) desc, " +
             "similarity(username, #{username}) desc " +
             "limit 10")
-    List<Users> findByUsername(String username);
+    List<Users> searchByNickname(String username);
 }

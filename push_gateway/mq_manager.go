@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"strconv"
@@ -12,8 +13,12 @@ import (
 )
 
 type pushPayLoad struct {
-	UserId string `json:"userId"`
-	Msg    string `json:"msg"`
+	UserId  string      `json:"userId"`
+	Content pushContent `json:"content"`
+}
+
+type pushContent struct {
+	Msg string `json:"msg"`
 }
 
 const (
@@ -86,7 +91,7 @@ func initMqConsumer() (*amqp.Connection, *amqp.Channel, <-chan amqp.Delivery, er
 	deliveries, err := ch.Consume(
 		queueName,
 		strconv.FormatInt(nodeId, 10),
-		true,
+		false, // autoAck: false! 需要手动 ack，确保消息不丢失
 		true,
 		false,
 		false,
@@ -99,13 +104,17 @@ func initMqConsumer() (*amqp.Connection, *amqp.Channel, <-chan amqp.Delivery, er
 	return conn, ch, deliveries, nil
 }
 
-func startMqConsumer(ctx context.Context, deliveries <-chan amqp.Delivery) {
+func startMqConsumer(ctx context.Context, deliveries <-chan amqp.Delivery) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return
-		case d := <-deliveries:
-			handlePushMessage(d)
+			return nil
+		case d, ok := <-deliveries:
+			if !ok {
+				return errors.New("MQ 消费队列已关闭")
+			}
+			// 开启一个微线程(Goroutine)去处理每一条消息，绝不阻塞主消费队列
+			go handlePushMessage(d)
 		}
 	}
 }
@@ -121,7 +130,7 @@ func handlePushMessage(d amqp.Delivery) {
 		return
 	}
 
-	log.Printf("收到业务层下发指令 -> userId: %s, msg: %s", payload.UserId, payload.Msg)
+	log.Printf("收到业务层下发指令 -> userId: %s, msg: %s", payload.UserId, payload.Content.Msg)
 
 	clientMap, exists := cm.get(payload.UserId)
 	if !exists {
@@ -131,10 +140,10 @@ func handlePushMessage(d amqp.Delivery) {
 	}
 
 	for _, client := range clientMap {
-		if err = client.WriteMessage(websocket.TextMessage, []byte(payload.Msg)); err != nil {
+		if err = client.writeMessage(websocket.TextMessage, []byte(payload.Content.Msg)); err != nil {
 			log.Printf("MQ 推送到 websocket 失败 userId=%s err=%v", payload.UserId, err)
 		}
 	}
 
-	d.Ack(true)
+	d.Ack(false)
 }

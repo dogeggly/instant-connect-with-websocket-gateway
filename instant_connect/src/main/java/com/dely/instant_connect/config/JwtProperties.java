@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
+import java.util.Date;
 import java.util.Map;
 
 /**
@@ -17,7 +18,9 @@ public class JwtProperties {
 
     @Value("${jwt.secret-key}")
     private String jwtSecretKey;
-    
+
+    private static final long expirationTime = 7200000L; // 2h
+
     public String createJWT(Map<String, Object> claims) {
 
         //创建密钥即Key对象
@@ -25,6 +28,8 @@ public class JwtProperties {
 
         return Jwts.builder()
                 .setClaims(claims)
+                // 设置过期时间
+                .setExpiration(new Date(System.currentTimeMillis() + expirationTime))
                 // 设置签名使用的签名秘钥
                 .signWith(secretKeySpec)
                 .compact();
