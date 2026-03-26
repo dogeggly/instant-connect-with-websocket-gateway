@@ -4,9 +4,9 @@ CREATE SEQUENCE IF NOT EXISTS users_user_id_seq START WITH 10001;
 CREATE TABLE IF NOT EXISTS users
 (
     user_id       BIGINT PRIMARY KEY    DEFAULT NEXTVAL('users_user_id_seq'), -- 主键：用户唯一 ID（自增）
-    username      VARCHAR(64)  NOT NULL,                                    -- 登录名
-    password_hash VARCHAR(255) NOT NULL,                                    -- 加密后的密码哈希
-    created_at    TIMESTAMP    NOT NULL DEFAULT NOW()                       -- 注册时间
+    username      VARCHAR(64)  NOT NULL,                                      -- 登录名
+    password_hash VARCHAR(255) NOT NULL,                                      -- 加密后的密码哈希
+    created_at    TIMESTAMP    NOT NULL DEFAULT NOW()                         -- 注册时间
 );
 -- 登录名去重与按用户名极速检索
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users (username);
@@ -47,7 +47,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_req_id ON messages (req_id);
 CREATE INDEX IF NOT EXISTS idx_messages_receiver_msg ON messages (receiver_id, msg_id);
 
 
--- user_sessions: 用户最近会话列表（用户私有）
+-- 以下表由前端维护
+/*-- user_sessions: 用户最近会话列表（用户私有）
 CREATE TABLE IF NOT EXISTS user_sessions
 (
     user_id        BIGINT    NOT NULL,               -- 联合主键1：归属用户 ID
@@ -73,4 +74,4 @@ CREATE TABLE IF NOT EXISTS sync_cursors
     PRIMARY KEY (user_id, device_id),               -- 联合主键
     last_pull_id BIGINT      NOT NULL DEFAULT 0,    -- 最后成功拉取到的 msg_id
     updated_at   TIMESTAMP   NOT NULL DEFAULT NOW() -- 最后拉取时间
-);
+);*/

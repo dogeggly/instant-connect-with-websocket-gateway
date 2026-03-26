@@ -1,0 +1,56 @@
+server:
+  port: 8000
+
+spring:
+  application:
+    name: instant-messaging
+  profiles:
+    include: secret  # 引入密码配置文件（application-secret.yml）
+  datasource:
+    url: jdbc:postgresql://192.168.100.131:5432/instant_messaging
+    username: postgres
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
+      database: 3
+      timeout: 3000ms
+      lettuce:
+        pool:
+          max-active: 200  # 连接池最大活跃连接数（针对大并发查路由）
+          max-idle: 50     # 最大空闲连接数
+          min-idle: 10     # 最小空闲连接数（保证随时有可用连接，防冷启动抖动）
+          max-wait: 1000ms # 当池满时，获取连接的最大等待时间，超时抛异常，触发降级
+  rabbitmq:
+    addresses: 192.168.100.131
+    port: 5672
+    username: dogeggly
+    # 设置超时时间
+    connection-timeout: 1000ms
+    # 开启并配置重连策略
+    template:
+      retry:
+        enabled: true
+        initial-interval: 100ms
+        # 最大尝试次数：2次（也就是正常的 1 次发送 + 1 次重试）
+        max-attempts: 2
+        multiplier: 1.0
+    # 开启消息发送确认，基于异步
+    publisher-confirm-type: correlated
+    publisher-returns: true
+
+mybatis-plus:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.dely.im.entity # 别名扫描包
+  configuration:
+    map-underscore-to-camel-case: true
+
+logging:
+  level:
+    com.dely.chat:
+      mapper: debug
+      service: info
+      controller: info
+
+snowflake:
+  datacenter-id: 1
