@@ -19,6 +19,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 /**
  * <p>
@@ -40,6 +41,9 @@ public class UsersController {
 
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
+
+    private static final String REFRESH_TOKEN_PREFIX = "ws:refresh:userId:";
+    private static final long REFRESH_EXPIRATION_TIME = 7L; // 7天
 
     /**
      * 注册
@@ -94,7 +98,7 @@ public class UsersController {
      * 登录
      */
     @PostMapping("/login")
-    public Result<String> login(@RequestBody Users users) {
+    public Result<Map<String, Object>> login(@RequestBody Users users) {
         String username = users.getUsername();
         String password = users.getPasswordHash();
         if (StrUtil.isBlank(username) || StrUtil.isBlank(password)) {
@@ -110,15 +114,47 @@ public class UsersController {
 
         Map<String, Object> claims = new HashMap<>();
         claims.put("userId", user.getUserId());
-        String jwt = jwtProperties.createJWT(claims);
-        // 返回 token
+        String accessToken = jwtProperties.createAccessToken(claims);
+
+        String redisKey = REFRESH_TOKEN_PREFIX + user.getUserId();
+        String refreshToken = UUID.randomUUID().toString();
+        stringRedisTemplate.opsForValue().set(redisKey, refreshToken, REFRESH_EXPIRATION_TIME, TimeUnit.DAYS);
+
+        Map<String, Object> jwt = new HashMap<>();
+        jwt.put("accessToken", accessToken);
+        jwt.put("refreshToken", refreshToken);
         return Result.success(jwt);
+    }
+
+    @GetMapping("/refresh")
+    public Result<String> refreshToken(Long userId, String refreshToken) {
+        if (StrUtil.isBlank(refreshToken) || userId == null) {
+            return Result.fail("参数错误，userId refreshToken 是必填项");
+        }
+
+        // 1. 从 Redis 中查询该用户的 Refresh Token
+        String redisKey = REFRESH_TOKEN_PREFIX + userId;
+        String serverRefreshToken = stringRedisTemplate.opsForValue().get(redisKey);
+
+        // 2. 校验 Refresh Token 是否存在以及是否匹配
+        if (serverRefreshToken == null || !serverRefreshToken.equals(refreshToken)) {
+            return Result.fail(401, "Refresh Token 无效或已过期，请重新登录");
+        }
+
+        // 3. 校验通过，颁发新的 Access Token
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("userId", userId);
+        String newAccessToken = jwtProperties.createAccessToken(claims);
+
+        // 4. 刷新 Refresh Token 的过期时间，保持用户活跃状态
+        stringRedisTemplate.expire(redisKey, REFRESH_EXPIRATION_TIME, TimeUnit.DAYS);
+
+        return Result.success(newAccessToken);
     }
 
     /**
      * 根据昵称搜索用户
      */
-    // TODO 测试接口
     @GetMapping("/search")
     public Result<List<String>> searchByNickname(String username) {
         // 没有加入分页逻辑，可以让前端传上一个相似度，然后查10条大于这个相似度的数据

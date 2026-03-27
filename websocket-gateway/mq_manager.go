@@ -7,20 +7,22 @@ import (
 	"fmt"
 	"log"
 	"strconv"
+	"websocket-gateway/pb"
 
 	amqp "github.com/rabbitmq/amqp091-go"
+	"google.golang.org/protobuf/proto"
 )
 
-type mqPayload struct {
-	Type     int8            `json:"type"`  // 1: 普通聊天，待扩展
+/* type mqPayload struct {
+	Type     int32            `json:"type"`  // 1: 普通聊天，待扩展
 	MsgId    int64           `json:"msgId"` // 消息 ID，幂等控制
 	UserId   int64           `json:"userId"`
 	SenderId int64           `json:"senderId"`
 	Content  json.RawMessage `json:"content"`
-}
+} */
 
 type pushPayload struct {
-	Type     int8            `json:"type"`
+	Type     int32           `json:"type"`
 	MsgId    string          `json:"msgId"`
 	SenderId string          `json:"senderId"`
 	Content  json.RawMessage `json:"content"`
@@ -129,8 +131,8 @@ func startMqConsumer(ctx context.Context, deliveries <-chan amqp.Delivery) error
 }
 
 func handlePushPayload(d amqp.Delivery) {
-	var mqpl mqPayload
-	err := json.Unmarshal(d.Body, &mqpl)
+	var mqpl pb.MqPayload
+	err := proto.Unmarshal(d.Body, &mqpl)
 	if err != nil {
 		log.Printf("解析 MQ 消息失败: %v", err)
 		// 解析失败属于死信，直接拒绝并不再重试
@@ -140,12 +142,12 @@ func handlePushPayload(d amqp.Delivery) {
 
 	switch mqpl.Type {
 	case 1: // 处理普通聊天下发
-		handleChatContent(mqpl)
-		log.Printf("MQ 推送成功 userId=%s", mqpl.UserId)
+		handleChatContent(&mqpl)
+		log.Printf("MQ 推送成功 userId=%d", mqpl.UserId)
 		_ = d.Ack(false)
 	case 5: // 处理踢设备下线
-		handleKickContent(mqpl)
-		log.Printf("MQ 踢设备指令处理完成 userId=%s", mqpl.UserId)
+		handleKickContent(&mqpl)
+		log.Printf("MQ 踢设备指令处理完成 userId=%d", mqpl.UserId)
 		_ = d.Ack(false)
 	default:
 		log.Printf("未知的指令类型: %d", mqpl.Type)
@@ -153,7 +155,7 @@ func handlePushPayload(d amqp.Delivery) {
 	}
 }
 
-func handleChatContent(mqpl mqPayload) {
+func handleChatContent(mqpl *pb.MqPayload) {
 	userId := strconv.FormatInt(mqpl.UserId, 10)
 	clientMap, exists := cm.get(userId)
 	if !exists {
@@ -163,7 +165,7 @@ func handleChatContent(mqpl mqPayload) {
 
 	ppl := pushPayload{
 		Type:     mqpl.Type,
-		MsgId:    strconv.FormatInt(mqpl.MsgId, 10), // 转成字符串发给前端，避免 JS 精度问题
+		MsgId:    strconv.FormatInt(int64(mqpl.MsgId), 10), // 转成字符串发给前端，避免 JS 精度问题
 		SenderId: strconv.FormatInt(mqpl.SenderId, 10),
 		Content:  mqpl.Content,
 	}
@@ -175,7 +177,7 @@ func handleChatContent(mqpl mqPayload) {
 	}
 }
 
-func handleKickContent(mqpl mqPayload) {
+func handleKickContent(mqpl *pb.MqPayload) {
 	userId := strconv.FormatInt(mqpl.UserId, 10)
 
 	var content sysContent

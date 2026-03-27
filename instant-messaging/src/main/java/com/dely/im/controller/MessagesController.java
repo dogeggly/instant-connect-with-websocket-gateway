@@ -3,14 +3,20 @@ package com.dely.im.controller;
 import cn.hutool.core.lang.Snowflake;
 import cn.hutool.core.util.StrUtil;
 import com.dely.im.config.RabbitmqConfig;
+import com.dely.im.pb.MqPayload;
 import com.dely.im.utils.Result;
 import com.dely.im.entity.Messages;
 import com.dely.im.service.IMessagesService;
 import com.dely.im.utils.SyncMessage;
 import com.dely.im.utils.UserHolder;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.protobuf.ByteString;
 import lombok.extern.slf4j.Slf4j;
 import org.postgresql.util.PSQLException;
 import org.postgresql.util.ServerErrorMessage;
+import org.springframework.amqp.core.Message;
+import org.springframework.amqp.core.MessageBuilder;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -18,6 +24,7 @@ import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 /**
@@ -45,6 +52,9 @@ public class MessagesController {
     @Autowired
     private Snowflake snowflake;
 
+    @Autowired
+    private ObjectMapper objectMapper;
+
     @PostMapping("/send")
     public Result sendMessage(@RequestBody Messages message) {
 
@@ -65,6 +75,28 @@ public class MessagesController {
         pushMessageToOnlineGateways(message);
 
         return Result.success();
+    }
+
+    private boolean isReqIdDuplicate(Throwable throwable) {
+        Throwable current = throwable;
+        while (current != null) {
+            // 匹配 PG 底层异常
+            if (current instanceof PSQLException pgException) {
+                // 1. 确认是唯一约束冲突 (SQLState 23505)
+                if ("23505".equals(pgException.getSQLState())) {
+                    // 2. 获取 PG 服务端结构化错误信息
+                    ServerErrorMessage serverError = pgException.getServerErrorMessage();
+                    if (serverError != null) {
+                        // 3. 精准提取发生冲突的约束/索引名，彻底告别字符串截取！
+                        String constraintName = serverError.getConstraint();
+                        // 4. 精确比对
+                        return "idx_messages_req_id".equals(constraintName);
+                    }
+                }
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 
     @PostMapping("/send/no-store")
@@ -114,6 +146,7 @@ public class MessagesController {
             routeKeys.add("ws:route:" + receiverId + ":" + deviceId);
         }
 
+        if (routeKeys.isEmpty()) return;
         List<String> routeValues = stringRedisTemplate.opsForValue().multiGet(routeKeys);
         if (routeValues == null || routeValues.isEmpty()) {
             // 在两次查 redis 的间隙连接断了，或者 route 和 online 的 ttl 有极其细微的时间差
@@ -134,42 +167,69 @@ public class MessagesController {
             pushTargets.add(gatewayId);
         }
 
-        MqPayload pushPayload = MqPayload.builder().
-                type(message.getMsgType())
-                .msgId(message.getMsgId())
-                .userId(receiverId)
-                .senderId(message.getSenderId())
-                .content(message.getContent()).build();
+        if (pushTargets.isEmpty()) return;
+
+        String content;
+        try {
+            content = objectMapper.writeValueAsString(message.getContent());
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
+
+        MqPayload mqPayload = MqPayload.newBuilder()
+                .setType(message.getMsgType())
+                .setMsgId(message.getMsgId())
+                .setUserId(receiverId)
+                .setSenderId(message.getSenderId())
+                .setContent(ByteString.copyFrom(content, StandardCharsets.UTF_8)).build();
+
+        byte[] protobufBytes = mqPayload.toByteArray();
+
+        Message amqpMessage = MessageBuilder.withBody(protobufBytes)
+                // 告诉 MQ 和消费者，这是一坨二进制的 Protobuf 流，不是普通字符串
+                .setContentType("application/x-protobuf")
+                .build();
 
         for (String gatewayId : pushTargets) {
             rabbitTemplate.convertAndSend(
                     RabbitmqConfig.GATEWAY_EXCHANGE,
                     gatewayId,
-                    pushPayload);
-            log.info("消息 {} 发送到网关 {} 进行推送，载荷: {}", message.getMsgId(), gatewayId, pushPayload);
+                    amqpMessage);
+            log.info("消息 {} 发送到网关 {} 进行推送，载荷: {}", message.getMsgId(), gatewayId, mqPayload);
         }
     }
 
-    private boolean isReqIdDuplicate(Throwable throwable) {
-        Throwable current = throwable;
-        while (current != null) {
-            // 匹配 PG 底层异常
-            if (current instanceof PSQLException pgException) {
-                // 1. 确认是唯一约束冲突 (SQLState 23505)
-                if ("23505".equals(pgException.getSQLState())) {
-                    // 2. 获取 PG 服务端结构化错误信息
-                    ServerErrorMessage serverError = pgException.getServerErrorMessage();
-                    if (serverError != null) {
-                        // 3. 精准提取发生冲突的约束/索引名，彻底告别字符串截取！
-                        String constraintName = serverError.getConstraint();
-                        // 4. 精确比对
-                        return "idx_messages_req_id".equals(constraintName);
-                    }
-                }
-            }
-            current = current.getCause();
+    private void sysKickOut(String gatewayId, Long userId, String deviceId) {
+
+        Map<String, Object> map = new HashMap<>();
+        map.put("deviceId", deviceId);
+
+        String content;
+        try {
+            content = objectMapper.writeValueAsString(map);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
         }
-        return false;
+
+        // 构造踢人消息
+        MqPayload kickOutPayload = MqPayload.newBuilder()
+                .setType(5)
+                .setUserId(userId)
+                .setContent(ByteString.copyFrom(content, StandardCharsets.UTF_8))
+                .build();
+
+        byte[] protobufBytes = kickOutPayload.toByteArray();
+
+        Message amqpMessage = MessageBuilder.withBody(protobufBytes)
+                .setContentType("application/x-protobuf")
+                .build();
+
+        // 发送到指定网关
+        rabbitTemplate.convertAndSend(
+                RabbitmqConfig.GATEWAY_EXCHANGE,
+                gatewayId,
+                amqpMessage);
+        log.info("发送踢人消息到网关 {}，载荷: {}", gatewayId, kickOutPayload);
     }
 
     @GetMapping("/sync")
@@ -203,5 +263,3 @@ public class MessagesController {
         return Result.success(syncMessages);
     }
 }
-
-// TODO 离线消息处理

@@ -3,7 +3,7 @@
 // source: mq_payload.proto
 // Protobuf Java Version: 4.34.1
 
-package src.main.java.com.dely.im.pb;
+package com.dely.im.pb;
 
 @com.google.protobuf.Generated
 public final class MqPayloadOuterClass extends com.google.protobuf.GeneratedFile {
@@ -43,9 +43,8 @@ public final class MqPayloadOuterClass extends com.google.protobuf.GeneratedFile
       "\n\020mq_payload.proto\022(instant_messaging_wi" +
       "th_websocket_gateway\"^\n\tMqPayload\022\016\n\006msg" +
       "_id\030\001 \001(\006\022\014\n\004type\030\002 \001(\005\022\017\n\007user_id\030\003 \001(\003" +
-      "\022\021\n\tsender_id\030\004 \001(\003\022\017\n\007content\030\005 \001(\014B)\n\034" +
-      "src.main.java.com.dely.im.pbP\001Z\007./pb;pbb" +
-      "\006proto3"
+      "\022\021\n\tsender_id\030\004 \001(\003\022\017\n\007content\030\005 \001(\014B\033\n\016" +
+      "com.dely.im.pbP\001Z\007./pb;pbb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,

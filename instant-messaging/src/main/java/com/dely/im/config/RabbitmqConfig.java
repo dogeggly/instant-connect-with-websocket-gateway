@@ -2,8 +2,6 @@ package com.dely.im.config;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.DirectExchange;
-import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
-import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.boot.autoconfigure.amqp.RabbitTemplateCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -13,11 +11,6 @@ import org.springframework.context.annotation.Configuration;
 public class RabbitmqConfig {
 
     public static final String GATEWAY_EXCHANGE = "im.direct.exchange";
-
-    @Bean
-    public MessageConverter messageConverter() {
-        return new Jackson2JsonMessageConverter();
-    }
 
     @Bean
     public DirectExchange gatewayExchange() {

@@ -3,7 +3,7 @@
 // source: mq_payload.proto
 // Protobuf Java Version: 4.34.1
 
-package src.main.java.com.dely.im.pb;
+package com.dely.im.pb;
 
 /**
  * <pre>
@@ -37,20 +37,20 @@ private static final long serialVersionUID = 0L;
 
   public static final com.google.protobuf.Descriptors.Descriptor
       getDescriptor() {
-    return src.main.java.com.dely.im.pb.MqPayloadOuterClass.internal_static_instant_messaging_with_websocket_gateway_MqPayload_descriptor;
+    return com.dely.im.pb.MqPayloadOuterClass.internal_static_instant_messaging_with_websocket_gateway_MqPayload_descriptor;
   }
 
   @java.lang.Override
   public com.google.protobuf.Descriptors.Descriptor getDescriptorForType() {
-    return src.main.java.com.dely.im.pb.MqPayloadOuterClass.internal_static_instant_messaging_with_websocket_gateway_MqPayload_descriptor;
+    return com.dely.im.pb.MqPayloadOuterClass.internal_static_instant_messaging_with_websocket_gateway_MqPayload_descriptor;
   }
 
   @java.lang.Override
   protected com.google.protobuf.GeneratedMessage.FieldAccessorTable
       internalGetFieldAccessorTable() {
-    return src.main.java.com.dely.im.pb.MqPayloadOuterClass.internal_static_instant_messaging_with_websocket_gateway_MqPayload_fieldAccessorTable
+    return com.dely.im.pb.MqPayloadOuterClass.internal_static_instant_messaging_with_websocket_gateway_MqPayload_fieldAccessorTable
         .ensureFieldAccessorsInitialized(
-            src.main.java.com.dely.im.pb.MqPayload.class, src.main.java.com.dely.im.pb.MqPayload.Builder.class);
+            com.dely.im.pb.MqPayload.class, com.dely.im.pb.MqPayload.Builder.class);
   }
 
   public static final int MSG_ID_FIELD_NUMBER = 1;
@@ -185,10 +185,10 @@ private static final long serialVersionUID = 0L;
     if (obj == this) {
      return true;
     }
-    if (!(obj instanceof src.main.java.com.dely.im.pb.MqPayload)) {
+    if (!(obj instanceof com.dely.im.pb.MqPayload)) {
       return super.equals(obj);
     }
-    src.main.java.com.dely.im.pb.MqPayload other = (src.main.java.com.dely.im.pb.MqPayload) obj;
+    com.dely.im.pb.MqPayload other = (com.dely.im.pb.MqPayload) obj;
 
     if (getMsgId()
         != other.getMsgId()) return false;
@@ -229,44 +229,44 @@ private static final long serialVersionUID = 0L;
     return hash;
   }
 
-  public static src.main.java.com.dely.im.pb.MqPayload parseFrom(
+  public static com.dely.im.pb.MqPayload parseFrom(
       java.nio.ByteBuffer data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static src.main.java.com.dely.im.pb.MqPayload parseFrom(
+  public static com.dely.im.pb.MqPayload parseFrom(
       java.nio.ByteBuffer data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static src.main.java.com.dely.im.pb.MqPayload parseFrom(
+  public static com.dely.im.pb.MqPayload parseFrom(
       com.google.protobuf.ByteString data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static src.main.java.com.dely.im.pb.MqPayload parseFrom(
+  public static com.dely.im.pb.MqPayload parseFrom(
       com.google.protobuf.ByteString data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static src.main.java.com.dely.im.pb.MqPayload parseFrom(byte[] data)
+  public static com.dely.im.pb.MqPayload parseFrom(byte[] data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static src.main.java.com.dely.im.pb.MqPayload parseFrom(
+  public static com.dely.im.pb.MqPayload parseFrom(
       byte[] data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static src.main.java.com.dely.im.pb.MqPayload parseFrom(java.io.InputStream input)
+  public static com.dely.im.pb.MqPayload parseFrom(java.io.InputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessage
         .parseWithIOException(PARSER, input);
   }
-  public static src.main.java.com.dely.im.pb.MqPayload parseFrom(
+  public static com.dely.im.pb.MqPayload parseFrom(
       java.io.InputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
@@ -274,26 +274,26 @@ private static final long serialVersionUID = 0L;
         .parseWithIOException(PARSER, input, extensionRegistry);
   }
 
-  public static src.main.java.com.dely.im.pb.MqPayload parseDelimitedFrom(java.io.InputStream input)
+  public static com.dely.im.pb.MqPayload parseDelimitedFrom(java.io.InputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessage
         .parseDelimitedWithIOException(PARSER, input);
   }
 
-  public static src.main.java.com.dely.im.pb.MqPayload parseDelimitedFrom(
+  public static com.dely.im.pb.MqPayload parseDelimitedFrom(
       java.io.InputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessage
         .parseDelimitedWithIOException(PARSER, input, extensionRegistry);
   }
-  public static src.main.java.com.dely.im.pb.MqPayload parseFrom(
+  public static com.dely.im.pb.MqPayload parseFrom(
       com.google.protobuf.CodedInputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessage
         .parseWithIOException(PARSER, input);
   }
-  public static src.main.java.com.dely.im.pb.MqPayload parseFrom(
+  public static com.dely.im.pb.MqPayload parseFrom(
       com.google.protobuf.CodedInputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
@@ -306,7 +306,7 @@ private static final long serialVersionUID = 0L;
   public static Builder newBuilder() {
     return DEFAULT_INSTANCE.toBuilder();
   }
-  public static Builder newBuilder(src.main.java.com.dely.im.pb.MqPayload prototype) {
+  public static Builder newBuilder(com.dely.im.pb.MqPayload prototype) {
     return DEFAULT_INSTANCE.toBuilder().mergeFrom(prototype);
   }
   @java.lang.Override
@@ -331,21 +331,21 @@ private static final long serialVersionUID = 0L;
   public static final class Builder extends
       com.google.protobuf.GeneratedMessage.Builder<Builder> implements
       // @@protoc_insertion_point(builder_implements:instant_messaging_with_websocket_gateway.MqPayload)
-      src.main.java.com.dely.im.pb.MqPayloadOrBuilder {
+      com.dely.im.pb.MqPayloadOrBuilder {
     public static final com.google.protobuf.Descriptors.Descriptor
         getDescriptor() {
-      return src.main.java.com.dely.im.pb.MqPayloadOuterClass.internal_static_instant_messaging_with_websocket_gateway_MqPayload_descriptor;
+      return com.dely.im.pb.MqPayloadOuterClass.internal_static_instant_messaging_with_websocket_gateway_MqPayload_descriptor;
     }
 
     @java.lang.Override
     protected com.google.protobuf.GeneratedMessage.FieldAccessorTable
         internalGetFieldAccessorTable() {
-      return src.main.java.com.dely.im.pb.MqPayloadOuterClass.internal_static_instant_messaging_with_websocket_gateway_MqPayload_fieldAccessorTable
+      return com.dely.im.pb.MqPayloadOuterClass.internal_static_instant_messaging_with_websocket_gateway_MqPayload_fieldAccessorTable
           .ensureFieldAccessorsInitialized(
-              src.main.java.com.dely.im.pb.MqPayload.class, src.main.java.com.dely.im.pb.MqPayload.Builder.class);
+              com.dely.im.pb.MqPayload.class, com.dely.im.pb.MqPayload.Builder.class);
     }
 
-    // Construct using src.main.java.com.dely.im.pb.MqPayload.newBuilder()
+    // Construct using com.dely.im.pb.MqPayload.newBuilder()
     private Builder() {
 
     }
@@ -370,17 +370,17 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public com.google.protobuf.Descriptors.Descriptor
         getDescriptorForType() {
-      return src.main.java.com.dely.im.pb.MqPayloadOuterClass.internal_static_instant_messaging_with_websocket_gateway_MqPayload_descriptor;
+      return com.dely.im.pb.MqPayloadOuterClass.internal_static_instant_messaging_with_websocket_gateway_MqPayload_descriptor;
     }
 
     @java.lang.Override
-    public src.main.java.com.dely.im.pb.MqPayload getDefaultInstanceForType() {
-      return src.main.java.com.dely.im.pb.MqPayload.getDefaultInstance();
+    public com.dely.im.pb.MqPayload getDefaultInstanceForType() {
+      return com.dely.im.pb.MqPayload.getDefaultInstance();
     }
 
     @java.lang.Override
-    public src.main.java.com.dely.im.pb.MqPayload build() {
-      src.main.java.com.dely.im.pb.MqPayload result = buildPartial();
+    public com.dely.im.pb.MqPayload build() {
+      com.dely.im.pb.MqPayload result = buildPartial();
       if (!result.isInitialized()) {
         throw newUninitializedMessageException(result);
       }
@@ -388,14 +388,14 @@ private static final long serialVersionUID = 0L;
     }
 
     @java.lang.Override
-    public src.main.java.com.dely.im.pb.MqPayload buildPartial() {
-      src.main.java.com.dely.im.pb.MqPayload result = new src.main.java.com.dely.im.pb.MqPayload(this);
+    public com.dely.im.pb.MqPayload buildPartial() {
+      com.dely.im.pb.MqPayload result = new com.dely.im.pb.MqPayload(this);
       if (bitField0_ != 0) { buildPartial0(result); }
       onBuilt();
       return result;
     }
 
-    private void buildPartial0(src.main.java.com.dely.im.pb.MqPayload result) {
+    private void buildPartial0(com.dely.im.pb.MqPayload result) {
       int from_bitField0_ = bitField0_;
       if (((from_bitField0_ & 0x00000001) != 0)) {
         result.msgId_ = msgId_;
@@ -416,16 +416,16 @@ private static final long serialVersionUID = 0L;
 
     @java.lang.Override
     public Builder mergeFrom(com.google.protobuf.Message other) {
-      if (other instanceof src.main.java.com.dely.im.pb.MqPayload) {
-        return mergeFrom((src.main.java.com.dely.im.pb.MqPayload)other);
+      if (other instanceof com.dely.im.pb.MqPayload) {
+        return mergeFrom((com.dely.im.pb.MqPayload)other);
       } else {
         super.mergeFrom(other);
         return this;
       }
     }
 
-    public Builder mergeFrom(src.main.java.com.dely.im.pb.MqPayload other) {
-      if (other == src.main.java.com.dely.im.pb.MqPayload.getDefaultInstance()) return this;
+    public Builder mergeFrom(com.dely.im.pb.MqPayload other) {
+      if (other == com.dely.im.pb.MqPayload.getDefaultInstance()) return this;
       if (other.getMsgId() != 0L) {
         setMsgId(other.getMsgId());
       }
@@ -700,12 +700,12 @@ private static final long serialVersionUID = 0L;
   }
 
   // @@protoc_insertion_point(class_scope:instant_messaging_with_websocket_gateway.MqPayload)
-  private static final src.main.java.com.dely.im.pb.MqPayload DEFAULT_INSTANCE;
+  private static final com.dely.im.pb.MqPayload DEFAULT_INSTANCE;
   static {
-    DEFAULT_INSTANCE = new src.main.java.com.dely.im.pb.MqPayload();
+    DEFAULT_INSTANCE = new com.dely.im.pb.MqPayload();
   }
 
-  public static src.main.java.com.dely.im.pb.MqPayload getDefaultInstance() {
+  public static com.dely.im.pb.MqPayload getDefaultInstance() {
     return DEFAULT_INSTANCE;
   }
 
@@ -741,7 +741,7 @@ private static final long serialVersionUID = 0L;
   }
 
   @java.lang.Override
-  public src.main.java.com.dely.im.pb.MqPayload getDefaultInstanceForType() {
+  public com.dely.im.pb.MqPayload getDefaultInstanceForType() {
     return DEFAULT_INSTANCE;
   }
 

@@ -19,7 +19,8 @@ public class WebMvcConfiguration implements WebMvcConfigurer {
                 .addPathPatterns("/**")
                 .excludePathPatterns("/users/register")
                 .excludePathPatterns("/users/login")
-                // 测试时开启
+                .excludePathPatterns("users/refresh")
+                //调试时开启
                 .excludePathPatterns("/**");
     }
 }

@@ -3,7 +3,7 @@
 // source: mq_payload.proto
 // Protobuf Java Version: 4.34.1
 
-package src.main.java.com.dely.im.pb;
+package com.dely.im.pb;
 
 @com.google.protobuf.Generated
 public interface MqPayloadOrBuilder extends

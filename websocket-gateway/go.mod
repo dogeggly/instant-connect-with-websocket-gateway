@@ -1,4 +1,4 @@
-module push_gateway
+module websocket-gateway
 
 go 1.26.0
 

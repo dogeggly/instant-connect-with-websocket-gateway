@@ -81,5 +81,13 @@
       websocket，并接收到新消息，最后拉取的离线消息中可能包含那个新消息，content 为真正的聊天消息，也可能是前面说的需要特殊处理的内容
 - 解决分布式下定时任务的问题
     - 需要向 redis 抢 setnx 锁，且用完锁后不要自己释放，要给一定的 ttl，不要自己释放，以防时钟漂移
-- jwt 过期问题
-    - 可以采用双 token 或者 redis 存 session 的策略，前者有点麻烦，后者增加业务延迟，暂时不管了
+
+### 3.27
+
+- 双 token
+    - 即 refresh token 和 access token，如果只用长 token，服务器无法再主动踢掉或封禁用户，只能等 token 过期，如果只用短
+      token，每一次请求都要计算新的 jwt 或请求 redis，浪费性能
+    - 前端拦截 401 的响应，再发一个刷新短 token 的请求，并且设置 isRefreshing 为 false，以防并发请求都来请求刷新，把后续请求异步，直到刷新的请求响应成功且业务
+      code 为 200
+- protocol buffer
+    - 对于雪花 id，用 fixed64 绕开 varint 编码，对于 userId 和 senderId，用 varint 压缩，后续考虑用 enum 和优化 json

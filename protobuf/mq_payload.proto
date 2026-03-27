@@ -10,7 +10,7 @@ option go_package = "./pb;pb";
 
 // ===== 给 Java (Spring Boot) 的配置 =====
 // 指定生成的 Java 类的包名
-option java_package = "src.main.java.com.dely.im.pb";
+option java_package = "com.dely.im.pb";
 // 开启多文件生成
 option java_multiple_files = true;
 
