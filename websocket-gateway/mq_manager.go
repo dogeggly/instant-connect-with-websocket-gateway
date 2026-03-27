@@ -11,17 +11,23 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
-type mqPayLoad struct {
-	Type    int8            `json:"type"`   // 1: 普通聊天，待扩展
-	MsgId   int64           `json:"msgId"`  // 消息 ID，幂等控制
-	UserId  string          `json:"userId"` // 用 string 方便一点
-	Content json.RawMessage `json:"content"`
+type mqPayload struct {
+	Type     int8            `json:"type"`  // 1: 普通聊天，待扩展
+	MsgId    int64           `json:"msgId"` // 消息 ID，幂等控制
+	UserId   int64           `json:"userId"`
+	SenderId int64           `json:"senderId"`
+	Content  json.RawMessage `json:"content"`
 }
 
-type pushPayLoad struct {
-	Type    int8            `json:"type"`
-	MsgId   string          `json:"msgId"`
-	Content json.RawMessage `json:"content"`
+type pushPayload struct {
+	Type     int8            `json:"type"`
+	MsgId    string          `json:"msgId"`
+	SenderId string          `json:"senderId"`
+	Content  json.RawMessage `json:"content"`
+}
+
+type sysContent struct {
+	DeviceId string `json:"deviceId"`
 }
 
 const (
@@ -117,14 +123,14 @@ func startMqConsumer(ctx context.Context, deliveries <-chan amqp.Delivery) error
 				return errors.New("MQ 消费队列已关闭")
 			}
 			// 开启一个微线程(Goroutine)去处理每一条消息，绝不阻塞主消费队列
-			go handlePushPayLoad(d)
+			go handlePushPayload(d)
 		}
 	}
 }
 
-func handlePushPayLoad(d amqp.Delivery) {
-	var mqPL mqPayLoad
-	err := json.Unmarshal(d.Body, &mqPL)
+func handlePushPayload(d amqp.Delivery) {
+	var mqpl mqPayload
+	err := json.Unmarshal(d.Body, &mqpl)
 	if err != nil {
 		log.Printf("解析 MQ 消息失败: %v", err)
 		// 解析失败属于死信，直接拒绝并不再重试
@@ -132,33 +138,74 @@ func handlePushPayLoad(d amqp.Delivery) {
 		return
 	}
 
-	switch mqPL.Type {
+	switch mqpl.Type {
 	case 1: // 处理普通聊天下发
-		handleChatContent(mqPL)
-		log.Printf("MQ 推送成功 userId=%s", mqPL.UserId)
+		handleChatContent(mqpl)
+		log.Printf("MQ 推送成功 userId=%s", mqpl.UserId)
+		_ = d.Ack(false)
+	case 5: // 处理踢设备下线
+		handleKickContent(mqpl)
+		log.Printf("MQ 踢设备指令处理完成 userId=%s", mqpl.UserId)
 		_ = d.Ack(false)
 	default:
-		log.Printf("未知的指令类型: %d", mqPL.Type)
+		log.Printf("未知的指令类型: %d", mqpl.Type)
 		_ = d.Reject(false)
 	}
 }
 
-func handleChatContent(mqPL mqPayLoad) {
-	clientMap, exists := cm.get(mqPL.UserId)
+func handleChatContent(mqpl mqPayload) {
+	userId := strconv.FormatInt(mqpl.UserId, 10)
+	clientMap, exists := cm.get(userId)
 	if !exists {
-		log.Printf("目标用户不在当前网关节点，userId=%s", mqPL.UserId)
+		log.Printf("目标用户不在当前网关节点，userId=%s", userId)
 		return
 	}
 
-	pushPL := pushPayLoad{
-		Type:    mqPL.Type,
-		MsgId:   strconv.FormatInt(mqPL.MsgId, 10), // 转成字符串发给前端，避免 JS 精度问题
-		Content: mqPL.Content,
+	ppl := pushPayload{
+		Type:     mqpl.Type,
+		MsgId:    strconv.FormatInt(mqpl.MsgId, 10), // 转成字符串发给前端，避免 JS 精度问题
+		SenderId: strconv.FormatInt(mqpl.SenderId, 10),
+		Content:  mqpl.Content,
 	}
 
 	for _, client := range clientMap {
-		if err := client.WriteJSON(pushPL); err != nil {
-			log.Printf("MQ 推送到 websocket 失败 userId=%s err=%v", mqPL.UserId, err)
+		if err := client.WriteJSON(ppl); err != nil {
+			log.Printf("MQ 推送到 websocket 失败 userId=%s err=%v", userId, err)
 		}
 	}
+}
+
+func handleKickContent(mqpl mqPayload) {
+	userId := strconv.FormatInt(mqpl.UserId, 10)
+
+	var content sysContent
+	err := json.Unmarshal(mqpl.Content, &content)
+	if err != nil {
+		log.Printf("解析踢设备 content 失败 userId=%s err=%v", userId, err)
+		return
+	}
+
+	if content.DeviceId == "" {
+		log.Printf("踢设备指令缺少 deviceId userId=%s", userId)
+		return
+	}
+
+	clientMap, exists := cm.get(userId)
+	if !exists {
+		log.Printf("目标用户不在当前网关节点，无法踢设备 userId=%s deviceId=%s", userId, content.DeviceId)
+		return
+	}
+
+	targetClient, exists := clientMap[content.DeviceId]
+	if !exists {
+		log.Printf("目标设备不在当前网关节点，无法踢设备 userId=%s deviceId=%s", userId, content.DeviceId)
+		return
+	}
+
+	if err = targetClient.Close(); err != nil {
+		log.Printf("踢设备关闭连接失败 userId=%s deviceId=%s err=%v", userId, content.DeviceId, err)
+		return
+	}
+
+	log.Printf("踢设备成功 userId=%s deviceId=%s", userId, content.DeviceId)
 }

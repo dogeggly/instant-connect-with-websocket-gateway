@@ -1,0 +1,31 @@
+// 指定使用 proto3 语法
+syntax = "proto3";
+
+// 命名空间
+package instant_messaging_with_websocket_gateway;
+
+// ===== 给 Go 语言的配置 =====
+// 指定生成的 Go 代码存放的目录和包名
+option go_package = "./pb;pb";
+
+// ===== 给 Java (Spring Boot) 的配置 =====
+// 指定生成的 Java 类的包名
+option java_package = "src.main.java.com.dely.im.pb";
+// 开启多文件生成
+option java_multiple_files = true;
+
+// 定义真正的消息载荷
+message MqPayload {
+  // 使用 fixed64，强制固定占用 8 字节，关闭 Varint 压缩！
+  // 效率最高，体积最小！
+  fixed64 msg_id = 1;
+
+  int32 type = 2;
+
+  // 几万、几十万的小数字，就用 int64 (享受 Varint 压缩)
+  int64 user_id = 3;
+
+  int64 sender_id = 4;
+
+  bytes content = 5;
+}

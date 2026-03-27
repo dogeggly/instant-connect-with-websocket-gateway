@@ -3,7 +3,6 @@ package com.dely.im.controller;
 import cn.hutool.core.lang.Snowflake;
 import cn.hutool.core.util.StrUtil;
 import com.dely.im.config.RabbitmqConfig;
-import com.dely.im.utils.MqPayLoad;
 import com.dely.im.utils.Result;
 import com.dely.im.entity.Messages;
 import com.dely.im.service.IMessagesService;
@@ -20,7 +19,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
-import java.util.stream.Stream;
 
 /**
  * <p>
@@ -49,11 +47,6 @@ public class MessagesController {
 
     @PostMapping("/send")
     public Result sendMessage(@RequestBody Messages message) {
-        if (message.getReceiverId() == null || message.getSenderId() == null || message.getContent() == null || message.getContent().isEmpty()) {
-            return Result.fail("参数不完整，receiverId 、senderId、 content 必填");
-        }
-
-        String receiverId = String.valueOf(message.getReceiverId());
 
         // 1. 生成全局单调递增的 Message ID
         long msgId = snowflake.nextId();
@@ -69,12 +62,32 @@ public class MessagesController {
             }
         }
 
+        pushMessageToOnlineGateways(message);
+
+        return Result.success();
+    }
+
+    @PostMapping("/send/no-store")
+    public Result sendMessageWithoutStore(@RequestBody Messages message) {
+
+        long msgId = snowflake.nextId();
+        message.setMsgId(msgId);
+
+        pushMessageToOnlineGateways(message);
+
+        return Result.success();
+    }
+
+    private void pushMessageToOnlineGateways(Messages message) {
+
+        Long receiverId = message.getReceiverId();
+
         // 3. 先查 ws:online:{userId}，拿到所有在线设备 deviceId|platform
         String onlineKey = "ws:online:" + receiverId;
         Set<ZSetOperations.TypedTuple<String>> onlineMembers = stringRedisTemplate.opsForZSet().rangeWithScores(onlineKey, 0, -1);
         if (onlineMembers == null || onlineMembers.isEmpty()) {
             // 说明对方离线，不做任何处理
-            return Result.success();
+            return;
         }
 
         Set<String> routeKeys = new HashSet<>();
@@ -104,7 +117,7 @@ public class MessagesController {
         List<String> routeValues = stringRedisTemplate.opsForValue().multiGet(routeKeys);
         if (routeValues == null || routeValues.isEmpty()) {
             // 在两次查 redis 的间隙连接断了，或者 route 和 online 的 ttl 有极其细微的时间差
-            return Result.success();
+            return;
         }
 
         Set<String> pushTargets = new HashSet<>();
@@ -121,18 +134,20 @@ public class MessagesController {
             pushTargets.add(gatewayId);
         }
 
-        MqPayLoad pushPayload = MqPayLoad.builder().
-                type(1).msgId(msgId).userId(receiverId).content(message.getContent()).build();
+        MqPayload pushPayload = MqPayload.builder().
+                type(message.getMsgType())
+                .msgId(message.getMsgId())
+                .userId(receiverId)
+                .senderId(message.getSenderId())
+                .content(message.getContent()).build();
 
         for (String gatewayId : pushTargets) {
             rabbitTemplate.convertAndSend(
                     RabbitmqConfig.GATEWAY_EXCHANGE,
                     gatewayId,
                     pushPayload);
-            log.info("消息 {} 发送到网关 {} 进行推送，载荷: {}", msgId, gatewayId, pushPayload);
+            log.info("消息 {} 发送到网关 {} 进行推送，载荷: {}", message.getMsgId(), gatewayId, pushPayload);
         }
-
-        return Result.success();
     }
 
     private boolean isReqIdDuplicate(Throwable throwable) {
@@ -181,6 +196,7 @@ public class MessagesController {
                 SyncMessage.builder()
                         .msgId(String.valueOf(message.getMsgId()))
                         .type(message.getMsgType())
+                        .senderId(String.valueOf(message.getSenderId()))
                         .content(message.getContent()).build()
         ).toList();
 

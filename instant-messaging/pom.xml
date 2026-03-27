@@ -97,6 +97,13 @@
             <artifactId>jjwt-jackson</artifactId>
             <version>0.11.5</version>
         </dependency>
+
+        <!--protocol buffer-->
+        <dependency>
+            <groupId>com.google.protobuf</groupId>
+            <artifactId>protobuf-java</artifactId>
+            <version>3.34.1</version>
+        </dependency>
     </dependencies>
 
     <build>

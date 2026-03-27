@@ -10,5 +10,6 @@ import java.util.Map;
 public class SyncMessage {
     private Integer type;
     private String msgId;
+    private String senderId;
     private Map<String, Object> content;
 }
