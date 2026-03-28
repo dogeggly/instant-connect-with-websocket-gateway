@@ -3,6 +3,7 @@ package com.dely.im.controller;
 import cn.hutool.core.lang.Snowflake;
 import cn.hutool.core.util.StrUtil;
 import com.dely.im.config.RabbitmqConfig;
+import com.dely.im.pb.EventType;
 import com.dely.im.pb.MqPayload;
 import com.dely.im.utils.Result;
 import com.dely.im.entity.Messages;
@@ -177,7 +178,7 @@ public class MessagesController {
         }
 
         MqPayload mqPayload = MqPayload.newBuilder()
-                .setType(message.getMsgType())
+                .setType(EventType.forNumber(message.getChatType()))
                 .setMsgId(message.getMsgId())
                 .setUserId(receiverId)
                 .setSenderId(message.getSenderId())
@@ -213,7 +214,7 @@ public class MessagesController {
 
         // 构造踢人消息
         MqPayload kickOutPayload = MqPayload.newBuilder()
-                .setType(5)
+                .setType(EventType.SYS_KICK_OUT)
                 .setUserId(userId)
                 .setContent(ByteString.copyFrom(content, StandardCharsets.UTF_8))
                 .build();

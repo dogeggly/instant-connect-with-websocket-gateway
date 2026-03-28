@@ -41,10 +41,13 @@ public final class MqPayloadOuterClass extends com.google.protobuf.GeneratedFile
   static {
     java.lang.String[] descriptorData = {
       "\n\020mq_payload.proto\022(instant_messaging_wi" +
-      "th_websocket_gateway\"^\n\tMqPayload\022\016\n\006msg" +
-      "_id\030\001 \001(\006\022\014\n\004type\030\002 \001(\005\022\017\n\007user_id\030\003 \001(\003" +
-      "\022\021\n\tsender_id\030\004 \001(\003\022\017\n\007content\030\005 \001(\014B\033\n\016" +
-      "com.dely.im.pbP\001Z\007./pb;pbb\006proto3"
+      "th_websocket_gateway\"\223\001\n\tMqPayload\022\016\n\006ms" +
+      "g_id\030\001 \001(\006\022A\n\004type\030\002 \001(\01623.instant_messa" +
+      "ging_with_websocket_gateway.EventType\022\017\n" +
+      "\007user_id\030\003 \001(\003\022\021\n\tsender_id\030\004 \001(\003\022\017\n\007con" +
+      "tent\030\005 \001(\014*>\n\tEventType\022\021\n\rUNKNOWN_EVENT" +
+      "\020\000\022\014\n\010CHAT_MSG\020\001\022\020\n\014SYS_KICK_OUT\020\005B\033\n\016co" +
+      "m.dely.im.pbP\001Z\007./pb;pbb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,

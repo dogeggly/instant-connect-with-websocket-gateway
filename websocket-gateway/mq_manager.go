@@ -13,14 +13,6 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-/* type mqPayload struct {
-	Type     int32            `json:"type"`  // 1: 普通聊天，待扩展
-	MsgId    int64           `json:"msgId"` // 消息 ID，幂等控制
-	UserId   int64           `json:"userId"`
-	SenderId int64           `json:"senderId"`
-	Content  json.RawMessage `json:"content"`
-} */
-
 type pushPayload struct {
 	Type     int32           `json:"type"`
 	MsgId    string          `json:"msgId"`
@@ -141,11 +133,11 @@ func handlePushPayload(d amqp.Delivery) {
 	}
 
 	switch mqpl.Type {
-	case 1: // 处理普通聊天下发
+	case pb.EventType_CHAT_MSG: // 处理普通聊天下发
 		handleChatContent(&mqpl)
 		log.Printf("MQ 推送成功 userId=%d", mqpl.UserId)
 		_ = d.Ack(false)
-	case 5: // 处理踢设备下线
+	case pb.EventType_SYS_KICK_OUT: // 处理踢设备下线
 		handleKickContent(&mqpl)
 		log.Printf("MQ 踢设备指令处理完成 userId=%d", mqpl.UserId)
 		_ = d.Ack(false)
@@ -164,7 +156,7 @@ func handleChatContent(mqpl *pb.MqPayload) {
 	}
 
 	ppl := pushPayload{
-		Type:     mqpl.Type,
+		Type:     int32(mqpl.Type.Number()),
 		MsgId:    strconv.FormatInt(int64(mqpl.MsgId), 10), // 转成字符串发给前端，避免 JS 精度问题
 		SenderId: strconv.FormatInt(mqpl.SenderId, 10),
 		Content:  mqpl.Content,

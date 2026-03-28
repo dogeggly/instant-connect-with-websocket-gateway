@@ -32,6 +32,7 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private MqPayload() {
+    type_ = 0;
     content_ = com.google.protobuf.ByteString.EMPTY;
   }
 
@@ -72,12 +73,19 @@ private static final long serialVersionUID = 0L;
   public static final int TYPE_FIELD_NUMBER = 2;
   private int type_ = 0;
   /**
-   * <code>int32 type = 2;</code>
+   * <code>.instant_messaging_with_websocket_gateway.EventType type = 2;</code>
+   * @return The enum numeric value on the wire for type.
+   */
+  @java.lang.Override public int getTypeValue() {
+    return type_;
+  }
+  /**
+   * <code>.instant_messaging_with_websocket_gateway.EventType type = 2;</code>
    * @return The type.
    */
-  @java.lang.Override
-  public int getType() {
-    return type_;
+  @java.lang.Override public com.dely.im.pb.EventType getType() {
+    com.dely.im.pb.EventType result = com.dely.im.pb.EventType.forNumber(type_);
+    return result == null ? com.dely.im.pb.EventType.UNRECOGNIZED : result;
   }
 
   public static final int USER_ID_FIELD_NUMBER = 3;
@@ -134,8 +142,8 @@ private static final long serialVersionUID = 0L;
     if (msgId_ != 0L) {
       output.writeFixed64(1, msgId_);
     }
-    if (type_ != 0) {
-      output.writeInt32(2, type_);
+    if (type_ != com.dely.im.pb.EventType.UNKNOWN_EVENT.getNumber()) {
+      output.writeEnum(2, type_);
     }
     if (userId_ != 0L) {
       output.writeInt64(3, userId_);
@@ -159,9 +167,9 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeFixed64Size(1, msgId_);
     }
-    if (type_ != 0) {
+    if (type_ != com.dely.im.pb.EventType.UNKNOWN_EVENT.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(2, type_);
+        .computeEnumSize(2, type_);
     }
     if (userId_ != 0L) {
       size += com.google.protobuf.CodedOutputStream
@@ -192,8 +200,7 @@ private static final long serialVersionUID = 0L;
 
     if (getMsgId()
         != other.getMsgId()) return false;
-    if (getType()
-        != other.getType()) return false;
+    if (type_ != other.type_) return false;
     if (getUserId()
         != other.getUserId()) return false;
     if (getSenderId()
@@ -215,7 +222,7 @@ private static final long serialVersionUID = 0L;
     hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
         getMsgId());
     hash = (37 * hash) + TYPE_FIELD_NUMBER;
-    hash = (53 * hash) + getType();
+    hash = (53 * hash) + type_;
     hash = (37 * hash) + USER_ID_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
         getUserId());
@@ -429,8 +436,8 @@ private static final long serialVersionUID = 0L;
       if (other.getMsgId() != 0L) {
         setMsgId(other.getMsgId());
       }
-      if (other.getType() != 0) {
-        setType(other.getType());
+      if (other.type_ != 0) {
+        setTypeValue(other.getTypeValue());
       }
       if (other.getUserId() != 0L) {
         setUserId(other.getUserId());
@@ -473,7 +480,7 @@ private static final long serialVersionUID = 0L;
               break;
             } // case 9
             case 16: {
-              type_ = input.readInt32();
+              type_ = input.readEnum();
               bitField0_ |= 0x00000002;
               break;
             } // case 16
@@ -556,29 +563,49 @@ private static final long serialVersionUID = 0L;
       return this;
     }
 
-    private int type_ ;
+    private int type_ = 0;
     /**
-     * <code>int32 type = 2;</code>
-     * @return The type.
+     * <code>.instant_messaging_with_websocket_gateway.EventType type = 2;</code>
+     * @return The enum numeric value on the wire for type.
      */
-    @java.lang.Override
-    public int getType() {
+    @java.lang.Override public int getTypeValue() {
       return type_;
     }
     /**
-     * <code>int32 type = 2;</code>
-     * @param value The type to set.
+     * <code>.instant_messaging_with_websocket_gateway.EventType type = 2;</code>
+     * @param value The enum numeric value on the wire for type to set.
+     * @throws IllegalArgumentException if UNRECOGNIZED is provided.
      * @return This builder for chaining.
      */
-    public Builder setType(int value) {
-
+    public Builder setTypeValue(int value) {
       type_ = value;
       bitField0_ |= 0x00000002;
       onChanged();
       return this;
     }
     /**
-     * <code>int32 type = 2;</code>
+     * <code>.instant_messaging_with_websocket_gateway.EventType type = 2;</code>
+     * @return The type.
+     */
+    @java.lang.Override
+    public com.dely.im.pb.EventType getType() {
+      com.dely.im.pb.EventType result = com.dely.im.pb.EventType.forNumber(type_);
+      return result == null ? com.dely.im.pb.EventType.UNRECOGNIZED : result;
+    }
+    /**
+     * <code>.instant_messaging_with_websocket_gateway.EventType type = 2;</code>
+     * @param value The type to set.
+     * @return This builder for chaining.
+     */
+    public Builder setType(com.dely.im.pb.EventType value) {
+      if (value == null) { throw new NullPointerException(); }
+      bitField0_ |= 0x00000002;
+      type_ = value.getNumber();
+      onChanged();
+      return this;
+    }
+    /**
+     * <code>.instant_messaging_with_websocket_gateway.EventType type = 2;</code>
      * @return This builder for chaining.
      */
     public Builder clearType() {

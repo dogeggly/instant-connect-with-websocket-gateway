@@ -14,13 +14,26 @@ option java_package = "com.dely.im.pb";
 // 开启多文件生成
 option java_multiple_files = true;
 
+// 定义全局唯一的事件枚举字典
+enum EventType {
+    // Protobuf 的硬性规定：枚举的第一个值必须是 0！
+    // 我们可以把它作为默认值或未知类型，防止兼容性问题
+    UNKNOWN_EVENT = 0; 
+    
+    // 核心聊天事件
+    CHAT_MSG = 1;
+    
+    // 系统控制事件
+    SYS_KICK_OUT = 5;
+}
+
 // 定义真正的消息载荷
 message MqPayload {
   // 使用 fixed64，强制固定占用 8 字节，关闭 Varint 压缩！
   // 效率最高，体积最小！
   fixed64 msg_id = 1;
 
-  int32 type = 2;
+  EventType type = 2;
 
   // 几万、几十万的小数字，就用 int64 (享受 Varint 压缩)
   int64 user_id = 3;
@@ -29,3 +42,6 @@ message MqPayload {
 
   bytes content = 5;
 }
+
+// protoc --java_out=../instant-messaging/src/main/java mq_payload.proto
+// protoc --go_out=../websocket-gateway mq_payload.proto

@@ -90,4 +90,5 @@
     - 前端拦截 401 的响应，再发一个刷新短 token 的请求，并且设置 isRefreshing 为 false，以防并发请求都来请求刷新，把后续请求异步，直到刷新的请求响应成功且业务
       code 为 200
 - protocol buffer
-    - 对于雪花 id，用 fixed64 绕开 varint 编码，对于 userId 和 senderId，用 varint 压缩，后续考虑用 enum 和优化 json
+    - 对于雪花 id，用 fixed64 绕开 varint 编码，对于 userId 和 senderId，用 varint 压缩，对于 content，用 bytes 绕过 utf-8
+      校验，对于 type，用 enum，只在前端用数字

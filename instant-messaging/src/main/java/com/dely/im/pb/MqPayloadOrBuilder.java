@@ -22,10 +22,15 @@ public interface MqPayloadOrBuilder extends
   long getMsgId();
 
   /**
-   * <code>int32 type = 2;</code>
+   * <code>.instant_messaging_with_websocket_gateway.EventType type = 2;</code>
+   * @return The enum numeric value on the wire for type.
+   */
+  int getTypeValue();
+  /**
+   * <code>.instant_messaging_with_websocket_gateway.EventType type = 2;</code>
    * @return The type.
    */
-  int getType();
+  com.dely.im.pb.EventType getType();
 
   /**
    * <pre>

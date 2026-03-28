@@ -25,13 +25,67 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// 定义全局唯一的事件枚举字典
+type EventType int32
+
+const (
+	// Protobuf 的硬性规定：枚举的第一个值必须是 0！
+	// 我们可以把它作为默认值或未知类型，防止兼容性问题
+	EventType_UNKNOWN_EVENT EventType = 0
+	// 核心聊天事件
+	EventType_CHAT_MSG EventType = 1
+	// 系统控制事件
+	EventType_SYS_KICK_OUT EventType = 5
+)
+
+// Enum value maps for EventType.
+var (
+	EventType_name = map[int32]string{
+		0: "UNKNOWN_EVENT",
+		1: "CHAT_MSG",
+		5: "SYS_KICK_OUT",
+	}
+	EventType_value = map[string]int32{
+		"UNKNOWN_EVENT": 0,
+		"CHAT_MSG":      1,
+		"SYS_KICK_OUT":  5,
+	}
+)
+
+func (x EventType) Enum() *EventType {
+	p := new(EventType)
+	*p = x
+	return p
+}
+
+func (x EventType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (EventType) Descriptor() protoreflect.EnumDescriptor {
+	return file_mq_payload_proto_enumTypes[0].Descriptor()
+}
+
+func (EventType) Type() protoreflect.EnumType {
+	return &file_mq_payload_proto_enumTypes[0]
+}
+
+func (x EventType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use EventType.Descriptor instead.
+func (EventType) EnumDescriptor() ([]byte, []int) {
+	return file_mq_payload_proto_rawDescGZIP(), []int{0}
+}
+
 // 定义真正的消息载荷
 type MqPayload struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// 使用 fixed64，强制固定占用 8 字节，关闭 Varint 压缩！
 	// 效率最高，体积最小！
-	MsgId uint64 `protobuf:"fixed64,1,opt,name=msg_id,json=msgId,proto3" json:"msg_id,omitempty"`
-	Type  int32  `protobuf:"varint,2,opt,name=type,proto3" json:"type,omitempty"`
+	MsgId uint64    `protobuf:"fixed64,1,opt,name=msg_id,json=msgId,proto3" json:"msg_id,omitempty"`
+	Type  EventType `protobuf:"varint,2,opt,name=type,proto3,enum=instant_messaging_with_websocket_gateway.EventType" json:"type,omitempty"`
 	// 几万、几十万的小数字，就用 int64 (享受 Varint 压缩)
 	UserId        int64  `protobuf:"varint,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	SenderId      int64  `protobuf:"varint,4,opt,name=sender_id,json=senderId,proto3" json:"sender_id,omitempty"`
@@ -77,11 +131,11 @@ func (x *MqPayload) GetMsgId() uint64 {
 	return 0
 }
 
-func (x *MqPayload) GetType() int32 {
+func (x *MqPayload) GetType() EventType {
 	if x != nil {
 		return x.Type
 	}
-	return 0
+	return EventType_UNKNOWN_EVENT
 }
 
 func (x *MqPayload) GetUserId() int64 {
@@ -109,14 +163,18 @@ var File_mq_payload_proto protoreflect.FileDescriptor
 
 const file_mq_payload_proto_rawDesc = "" +
 	"\n" +
-	"\x10mq_payload.proto\x12(instant_messaging_with_websocket_gateway\"\x86\x01\n" +
+	"\x10mq_payload.proto\x12(instant_messaging_with_websocket_gateway\"\xbb\x01\n" +
 	"\tMqPayload\x12\x15\n" +
-	"\x06msg_id\x18\x01 \x01(\x06R\x05msgId\x12\x12\n" +
-	"\x04type\x18\x02 \x01(\x05R\x04type\x12\x17\n" +
+	"\x06msg_id\x18\x01 \x01(\x06R\x05msgId\x12G\n" +
+	"\x04type\x18\x02 \x01(\x0e23.instant_messaging_with_websocket_gateway.EventTypeR\x04type\x12\x17\n" +
 	"\auser_id\x18\x03 \x01(\x03R\x06userId\x12\x1b\n" +
 	"\tsender_id\x18\x04 \x01(\x03R\bsenderId\x12\x18\n" +
-	"\acontent\x18\x05 \x01(\fR\acontentB)\n" +
-	"\x1csrc.main.java.com.dely.im.pbP\x01Z\a./pb;pbb\x06proto3"
+	"\acontent\x18\x05 \x01(\fR\acontent*>\n" +
+	"\tEventType\x12\x11\n" +
+	"\rUNKNOWN_EVENT\x10\x00\x12\f\n" +
+	"\bCHAT_MSG\x10\x01\x12\x10\n" +
+	"\fSYS_KICK_OUT\x10\x05B\x1b\n" +
+	"\x0ecom.dely.im.pbP\x01Z\a./pb;pbb\x06proto3"
 
 var (
 	file_mq_payload_proto_rawDescOnce sync.Once
@@ -130,16 +188,19 @@ func file_mq_payload_proto_rawDescGZIP() []byte {
 	return file_mq_payload_proto_rawDescData
 }
 
+var file_mq_payload_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_mq_payload_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_mq_payload_proto_goTypes = []any{
-	(*MqPayload)(nil), // 0: instant_messaging_with_websocket_gateway.MqPayload
+	(EventType)(0),    // 0: instant_messaging_with_websocket_gateway.EventType
+	(*MqPayload)(nil), // 1: instant_messaging_with_websocket_gateway.MqPayload
 }
 var file_mq_payload_proto_depIdxs = []int32{
-	0, // [0:0] is the sub-list for method output_type
-	0, // [0:0] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	0, // 0: instant_messaging_with_websocket_gateway.MqPayload.type:type_name -> instant_messaging_with_websocket_gateway.EventType
+	1, // [1:1] is the sub-list for method output_type
+	1, // [1:1] is the sub-list for method input_type
+	1, // [1:1] is the sub-list for extension type_name
+	1, // [1:1] is the sub-list for extension extendee
+	0, // [0:1] is the sub-list for field type_name
 }
 
 func init() { file_mq_payload_proto_init() }
@@ -152,13 +213,14 @@ func file_mq_payload_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_mq_payload_proto_rawDesc), len(file_mq_payload_proto_rawDesc)),
-			NumEnums:      0,
+			NumEnums:      1,
 			NumMessages:   1,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
 		GoTypes:           file_mq_payload_proto_goTypes,
 		DependencyIndexes: file_mq_payload_proto_depIdxs,
+		EnumInfos:         file_mq_payload_proto_enumTypes,
 		MessageInfos:      file_mq_payload_proto_msgTypes,
 	}.Build()
 	File_mq_payload_proto = out.File
