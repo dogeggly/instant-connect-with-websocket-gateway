@@ -7,6 +7,8 @@ import (
 	"math/rand/v2"
 	"net/http"
 	"strconv"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -16,9 +18,49 @@ import (
 const (
 	// 允许等待客户端 Pong 响应的最大时间。过了这个时间没收到心跳，就踢掉它。
 	pongWait = 60 * time.Second
-	// 发送 Ping 心跳包的频率。必须小于 pongWait。
-	pingPeriod = 45 * time.Second
 )
+
+type packet struct {
+	msgType int    // websocket.TextMessage 或者是 websocket.PingMessage
+	data    []byte // 具体的 payload
+}
+
+// client 封装线程安全的客户端
+// 解决 gorilla/websocket 不能并发写入的痛点
+type client struct {
+	sync.Mutex // 这把锁只保护这一个连接的写入
+	*websocket.Conn
+	connID    string
+	isClose   atomic.Bool // 用于时钟轮判断，默认初始化为 false，不用上面的锁轻量一些
+	buffer    []packet
+	isWriting atomic.Bool
+}
+
+func (c *client) enqueueAndWrite(msgType int, data []byte) {
+	c.Lock()
+	// 1. 先把消息塞进切片排队（解决微突发丢包问题）
+	c.buffer = append(c.buffer, packet{msgType, data})
+	c.Unlock()
+
+	// 2. 如果当前没有人在发包，我就启动一个临时工去发！
+	if c.isWriting.CompareAndSwap(false, true) {
+		c.Lock()
+		oldBuffer := c.buffer
+		c.buffer = nil
+		c.Unlock()
+		go c.flushBuffer(oldBuffer) // 起飞！
+	}
+}
+
+// 专门负责清空 buffer 的临时工协程（发完就销毁，绝不常驻待命！）
+func (c *client) flushBuffer(buffer []packet) {
+	for _, msg := range buffer {
+		if err := c.WriteMessage(msg.msgType, msg.data); err != nil {
+			_ = c.Close()
+		}
+	}
+	c.isWriting.Store(false)
+}
 
 // 定义 Upgrader
 // 通过 HTTP 协议发送一个带有 Upgrade 头的请求，服务端同意后，协议"升级"为 WebSocket。
@@ -72,8 +114,8 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 
 	connID := snowflakeNode.Generate().String()
 	c := &client{Conn: conn, connID: connID}
-	// 草泥马别给我处理 err 的警告了
 	defer func() {
+		c.isClose.Store(true) // 标记连接已关闭，时钟轮会检查这个标记来决定是否续命
 		_ = c.Close()
 	}()
 
@@ -119,19 +161,6 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 
-	// 开启一个专属的 Goroutine，定时给客户端发 Ping 包
-	go func() {
-		ticker := time.NewTicker(pingPeriod)
-		defer ticker.Stop()
-		for {
-			<-ticker.C // 每 45 秒执行一次
-			// 发送标准的 Ping 控制帧
-			if err := c.WriteMessage(websocket.PingMessage, nil); err != nil {
-				return // 如果发心跳失败（说明连接已坏），退出协程
-			}
-		}
-	}()
-
 	// 开启死循环，不断读取和发送消息 (Goroutine 的轻量级体现在这里，死循环不会卡死其他用户)
 	for {
 		// 阻塞读取客户端发来的消息
@@ -143,18 +172,10 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 
 		// 实际业务不需要这段，websocket 只单向发消息
 		if messageType != 1 {
-			err = c.writeMessage(websocket.TextMessage, []byte("目前支持发送文字帧"))
-			if err != nil {
-				log.Println("写入消息失败:", err)
-				break
-			}
+			c.enqueueAndWrite(websocket.TextMessage, []byte("目前支持发送文字帧"))
 		}
 		log.Printf("收到用户 %s(%s) 消息: %s\n", userId, deviceId, string(p))
-		err = c.WriteMessage(messageType, p) // 原封不动地写回给客户端
-		if err != nil {
-			log.Println("写入消息失败:", err)
-			break
-		}
+		c.enqueueAndWrite(websocket.TextMessage, p) // 原封不动地写回给客户端
 	}
 }
 

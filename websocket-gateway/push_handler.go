@@ -32,10 +32,7 @@ func pushHandler(w http.ResponseWriter, r *http.Request) {
 
 	// 找到了！把消息推送下去
 	for _, client := range clientMap {
-		err := client.WriteMessage(websocket.TextMessage, []byte(msg))
-		if err != nil {
-			log.Printf("推送消息失败 userId=%s err=%v\n", userId, err)
-		}
+		client.enqueueAndWrite(websocket.TextMessage, []byte(msg))
 	}
 
 	_, err := w.Write([]byte("推送成功!"))

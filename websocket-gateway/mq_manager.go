@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"websocket-gateway/pb"
 
+	"github.com/gorilla/websocket"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"google.golang.org/protobuf/proto"
 )
@@ -162,10 +163,14 @@ func handleChatContent(mqpl *pb.MqPayload) {
 		Content:  mqpl.Content,
 	}
 
+	pplBytes, err := json.Marshal(ppl)
+	if err != nil {
+		log.Printf("MQ 推送数据序列化失败 userId=%s err=%v", userId, err)
+		return
+	}
+
 	for _, client := range clientMap {
-		if err := client.WriteJSON(ppl); err != nil {
-			log.Printf("MQ 推送到 websocket 失败 userId=%s err=%v", userId, err)
-		}
+		client.enqueueAndWrite(websocket.TextMessage, pplBytes)
 	}
 }
 
