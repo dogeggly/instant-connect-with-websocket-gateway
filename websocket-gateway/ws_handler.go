@@ -170,12 +170,13 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 			break // 报错了就跳出循环，触发上面的 defer 关闭连接
 		}
 
-		// 实际业务不需要这段，websocket 只单向发消息
-		if messageType != 1 {
-			c.enqueueAndWrite(websocket.TextMessage, []byte("目前支持发送文字帧"))
+		// 约定客户端只能发来二进制的心跳，客户端不能发 ping 因为 js 被浏览器接管了
+		if messageType != 2 {
+			continue
 		}
-		log.Printf("收到用户 %s(%s) 消息: %s\n", userId, deviceId, string(p))
-		c.enqueueAndWrite(websocket.TextMessage, p) // 原封不动地写回给客户端
+		// 调试时开启
+		// log.Printf("收到用户 %s(%s) 心跳\n", userId, deviceId)
+		c.enqueueAndWrite(messageType, p) // 原封不动地写回给客户端
 	}
 }
 
