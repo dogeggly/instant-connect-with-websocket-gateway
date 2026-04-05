@@ -11,5 +11,6 @@ public class SyncMessage {
     private Integer type;
     private String msgId;
     private String senderId;
-    private Map<String, Object> content;
+    private String content;
+    private Map<String, Object> extraData;
 }

@@ -35,16 +35,16 @@ public class Messages implements Serializable {
     @TableId(value = "msg_id", type = IdType.NONE)
     private Long msgId;
 
-    private Integer chatType;
-
     private Long senderId;
 
     private Long receiverId;
 
     private Integer msgType;
 
+    private String content;
+
     @TableField(typeHandler = PgJsonbTypeHandler.class)
-    private Map<String, Object> content;
+    private Map<String, Object> extraData;
 
     @TableField(typeHandler = PgUuidTypeHandler.class)
     private UUID reqId;

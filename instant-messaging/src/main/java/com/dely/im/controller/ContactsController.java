@@ -6,6 +6,7 @@ import com.dely.im.entity.Users;
 import com.dely.im.service.IContactsService;
 import com.dely.im.service.IUsersService;
 import com.dely.im.utils.Result;
+import com.dely.im.utils.UserHolder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -40,27 +41,32 @@ public class ContactsController {
 
     @PostMapping
     public Result addFriend(@RequestBody Contacts contact) {
-        if (contact == null || contact.getOwnerId() == null || contact.getPeerId() == null) {
-            return Result.fail("参数不完整，ownerId 和 peerId 必填");
+        if (contact == null || contact.getPeerId() == null) {
+            return Result.fail("参数不完整，peerId 必填");
         }
-        if (contact.getOwnerId().equals(contact.getPeerId())) {
+
+        Long userId = UserHolder.getCurrent();
+        if (userId.equals(contact.getPeerId())) {
             return Result.fail("ownerId 和 peerId 不能相同");
         }
 
+        contact.setOwnerId(userId);
         Users peer = iUsersService.lambdaQuery().eq(Users::getUserId, contact.getPeerId()).one();
         contact.setAliasName(peer.getUsername());
+
         boolean saved = iContactsService.save(contact);
         return saved ? Result.success() : Result.fail("新增联系人失败");
     }
 
     @DeleteMapping
-    public Result deleteFriend(Long ownerId, Long peerId) {
-        if (ownerId == null || peerId == null) {
-            return Result.fail("参数不完整，ownerId 和 peerId 必填");
+    public Result deleteFriend(Long peerId) {
+        if (peerId == null) {
+            return Result.fail("参数不完整，peerId 必填");
         }
 
+        Long userId = UserHolder.getCurrent();
         boolean removed = iContactsService.lambdaUpdate()
-                .eq(Contacts::getOwnerId, ownerId)
+                .eq(Contacts::getOwnerId, userId)
                 .eq(Contacts::getPeerId, peerId)
                 .remove();
 
@@ -68,17 +74,18 @@ public class ContactsController {
     }
 
     @PutMapping
-    public Result updateAlias(Long ownerId, Long peerId, String aliasName) {
-        if (ownerId == null || peerId == null) {
-            return Result.fail("参数不完整，ownerId 和 peerId 必填");
+    public Result updateAlias(Long peerId, String aliasName) {
+        if (peerId == null) {
+            return Result.fail("参数不完整，peerId 必填");
         }
 
         if (StrUtil.isBlank(aliasName)) {
             return Result.fail("别名不能为空");
         }
 
+        Long userId = UserHolder.getCurrent();
         boolean updated = iContactsService.lambdaUpdate()
-                .eq(Contacts::getOwnerId, ownerId)
+                .eq(Contacts::getOwnerId, userId)
                 .eq(Contacts::getPeerId, peerId)
                 .set(Contacts::getAliasName, aliasName)
                 .update();
@@ -87,30 +94,29 @@ public class ContactsController {
     }
 
     @GetMapping
-    public Result<Contacts> getContact(Long ownerId, Long peerId) {
-        if (ownerId == null || peerId == null) {
-            return Result.fail("参数不完整，ownerId 和 peerId 必填");
+    public Result<Contacts> getContact(Long peerId) {
+        if (peerId == null) {
+            return Result.fail("参数不完整，peerId 必填");
         }
 
+        Long userId = UserHolder.getCurrent();
         Contacts contact = iContactsService.lambdaQuery()
-                .eq(Contacts::getOwnerId, ownerId)
+                .eq(Contacts::getOwnerId, userId)
                 .eq(Contacts::getPeerId, peerId)
                 .one();
 
         if (contact == null) {
             return Result.fail(404, "联系人不存在");
         }
+
         return Result.success(contact);
     }
 
     @GetMapping("/list")
-    public Result<List<Contacts>> listContacts(Long ownerId) {
-        if (ownerId == null) {
-            return Result.fail("参数不完整，ownerId 必填");
-        }
-
+    public Result<List<Contacts>> listContacts() {
+        Long userId = UserHolder.getCurrent();
         List<Contacts> contacts = iContactsService.lambdaQuery()
-                .eq(Contacts::getOwnerId, ownerId)
+                .eq(Contacts::getOwnerId, userId)
                 .list();
 
         if (contacts == null || contacts.isEmpty()) {

@@ -15,14 +15,11 @@ import (
 )
 
 type pushPayload struct {
-	Type     int32           `json:"type"`
-	MsgId    string          `json:"msgId"`
-	SenderId string          `json:"senderId"`
-	Content  json.RawMessage `json:"content"`
-}
-
-type sysContent struct {
-	DeviceId string `json:"deviceId"`
+	Type      int32           `json:"type"`
+	MsgId     string          `json:"msgId"`
+	SenderId  string          `json:"senderId"`
+	Content   string          `json:"content"`
+	ExtraData json.RawMessage `json:"extraData"`
 }
 
 const (
@@ -157,10 +154,11 @@ func handleChatContent(mqpl *pb.MqPayload) {
 	}
 
 	ppl := pushPayload{
-		Type:     int32(mqpl.Type.Number()),
-		MsgId:    strconv.FormatInt(int64(mqpl.MsgId), 10), // 转成字符串发给前端，避免 JS 精度问题
-		SenderId: strconv.FormatInt(mqpl.SenderId, 10),
-		Content:  mqpl.Content,
+		Type:      int32(mqpl.Type.Number()),
+		MsgId:     strconv.FormatInt(int64(mqpl.MsgId), 10), // 转成字符串发给前端，避免 JS 精度问题
+		SenderId:  strconv.FormatInt(mqpl.SenderId, 10),
+		Content:   string(mqpl.Content),
+		ExtraData: mqpl.ExtraData,
 	}
 
 	pplBytes, err := json.Marshal(ppl)
@@ -177,34 +175,29 @@ func handleChatContent(mqpl *pb.MqPayload) {
 func handleKickContent(mqpl *pb.MqPayload) {
 	userId := strconv.FormatInt(mqpl.UserId, 10)
 
-	var content sysContent
-	err := json.Unmarshal(mqpl.Content, &content)
-	if err != nil {
-		log.Printf("解析踢设备 content 失败 userId=%s err=%v", userId, err)
-		return
-	}
+	content := string(mqpl.Content)
 
-	if content.DeviceId == "" {
+	if content == "" {
 		log.Printf("踢设备指令缺少 deviceId userId=%s", userId)
 		return
 	}
 
 	clientMap, exists := cm.get(userId)
 	if !exists {
-		log.Printf("目标用户不在当前网关节点，无法踢设备 userId=%s deviceId=%s", userId, content.DeviceId)
+		log.Printf("目标用户不在当前网关节点，无法踢设备 userId=%s deviceId=%s", userId, content)
 		return
 	}
 
-	targetClient, exists := clientMap[content.DeviceId]
+	targetClient, exists := clientMap[content]
 	if !exists {
-		log.Printf("目标设备不在当前网关节点，无法踢设备 userId=%s deviceId=%s", userId, content.DeviceId)
+		log.Printf("目标设备不在当前网关节点，无法踢设备 userId=%s deviceId=%s", userId, content)
 		return
 	}
 
-	if err = targetClient.Close(); err != nil {
-		log.Printf("踢设备关闭连接失败 userId=%s deviceId=%s err=%v", userId, content.DeviceId, err)
+	if err := targetClient.Close(); err != nil {
+		log.Printf("踢设备关闭连接失败 userId=%s deviceId=%s err=%v", userId, content, err)
 		return
 	}
 
-	log.Printf("踢设备成功 userId=%s deviceId=%s", userId, content.DeviceId)
+	log.Printf("踢设备成功 userId=%s deviceId=%s", userId, content)
 }

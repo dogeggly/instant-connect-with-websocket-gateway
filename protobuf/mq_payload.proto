@@ -16,15 +16,15 @@ option java_multiple_files = true;
 
 // 定义全局唯一的事件枚举字典
 enum EventType {
-    // Protobuf 的硬性规定：枚举的第一个值必须是 0！
-    // 我们可以把它作为默认值或未知类型，防止兼容性问题
-    UNKNOWN_EVENT = 0; 
-    
-    // 核心聊天事件
-    CHAT_MSG = 1;
-    
-    // 系统控制事件
-    SYS_KICK_OUT = 5;
+  // Protobuf 的硬性规定：枚举的第一个值必须是 0！
+  // 我们可以把它作为默认值或未知类型，防止兼容性问题
+  UNKNOWN_EVENT = 0;
+
+  // 核心聊天事件
+  CHAT_MSG = 1;
+
+  // 系统控制事件
+  SYS_KICK_OUT = 5;
 }
 
 // 定义真正的消息载荷
@@ -41,6 +41,8 @@ message MqPayload {
   int64 sender_id = 4;
 
   bytes content = 5;
+
+  bytes extra_data = 6;
 }
 
 // protoc --java_out=../instant-messaging/src/main/java mq_payload.proto

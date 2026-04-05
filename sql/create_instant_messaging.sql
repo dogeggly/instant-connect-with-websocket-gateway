@@ -30,16 +30,14 @@ CREATE TABLE IF NOT EXISTS contacts
 -- messages: 全局消息流水表
 CREATE TABLE IF NOT EXISTS messages
 (
-    msg_id      BIGINT PRIMARY KEY,               -- 主键：消息唯一 ID（雪花算法）
-    chat_type   SMALLINT  NOT NULL,               -- 聊天类型：1-单聊，2-群聊
-    sender_id   BIGINT    NOT NULL,               -- 发送方用户 ID
-    receiver_id BIGINT    NOT NULL,               -- 接收方 ID（群聊为群 ID）
-    msg_type    SMALLINT  NOT NULL,               -- 消息类型：1文本/2图片/3文件/4信令/5系统
-    content     JSONB     NOT NULL,               -- 消息载体：JSONB（适配多种消息结构）
-    req_id      uuid      NOT NULL,               -- 防重放 Token（前端 UUID）
-    created_at  TIMESTAMP NOT NULL DEFAULT NOW(), -- 入库时间
-    CHECK (chat_type IN (1, 2)),                  -- 聊天类型约束
-    CHECK (msg_type IN (1, 2, 3, 4, 5))           -- 消息类型约束
+    msg_id      BIGINT PRIMARY KEY,              -- 主键：消息唯一 ID（雪花算法）
+    sender_id   BIGINT    NOT NULL,              -- 发送方用户 ID
+    receiver_id BIGINT    NOT NULL,              -- 接收方 ID（群聊为群 ID）
+    msg_type    SMALLINT  NOT NULL,              -- 消息类型：1文本/2图片/3文件/4信令/5系统
+    content     TEXT      NOT NULL,              -- 消息载体
+    extra_data  JSONB,                           -- 扩展字段：JSONB（预留，灵活存储额外信息）
+    req_id      uuid      NOT NULL,              -- 防重放 Token（前端 UUID）
+    created_at  TIMESTAMP NOT NULL DEFAULT NOW() -- 入库时间
 );
 -- 保证接口幂等，防止前端重试导致重复入库
 CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_req_id ON messages (req_id);

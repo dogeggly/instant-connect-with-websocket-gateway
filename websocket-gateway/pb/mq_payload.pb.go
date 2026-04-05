@@ -90,6 +90,7 @@ type MqPayload struct {
 	UserId        int64  `protobuf:"varint,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	SenderId      int64  `protobuf:"varint,4,opt,name=sender_id,json=senderId,proto3" json:"sender_id,omitempty"`
 	Content       []byte `protobuf:"bytes,5,opt,name=content,proto3" json:"content,omitempty"`
+	ExtraData     []byte `protobuf:"bytes,6,opt,name=extra_data,json=extraData,proto3" json:"extra_data,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -159,17 +160,26 @@ func (x *MqPayload) GetContent() []byte {
 	return nil
 }
 
+func (x *MqPayload) GetExtraData() []byte {
+	if x != nil {
+		return x.ExtraData
+	}
+	return nil
+}
+
 var File_mq_payload_proto protoreflect.FileDescriptor
 
 const file_mq_payload_proto_rawDesc = "" +
 	"\n" +
-	"\x10mq_payload.proto\x12(instant_messaging_with_websocket_gateway\"\xbb\x01\n" +
+	"\x10mq_payload.proto\x12(instant_messaging_with_websocket_gateway\"\xda\x01\n" +
 	"\tMqPayload\x12\x15\n" +
 	"\x06msg_id\x18\x01 \x01(\x06R\x05msgId\x12G\n" +
 	"\x04type\x18\x02 \x01(\x0e23.instant_messaging_with_websocket_gateway.EventTypeR\x04type\x12\x17\n" +
 	"\auser_id\x18\x03 \x01(\x03R\x06userId\x12\x1b\n" +
 	"\tsender_id\x18\x04 \x01(\x03R\bsenderId\x12\x18\n" +
-	"\acontent\x18\x05 \x01(\fR\acontent*>\n" +
+	"\acontent\x18\x05 \x01(\fR\acontent\x12\x1d\n" +
+	"\n" +
+	"extra_data\x18\x06 \x01(\fR\textraData*>\n" +
 	"\tEventType\x12\x11\n" +
 	"\rUNKNOWN_EVENT\x10\x00\x12\f\n" +
 	"\bCHAT_MSG\x10\x01\x12\x10\n" +

@@ -53,4 +53,10 @@ public interface MqPayloadOrBuilder extends
    * @return The content.
    */
   com.google.protobuf.ByteString getContent();
+
+  /**
+   * <code>bytes extra_data = 6;</code>
+   * @return The extraData.
+   */
+  com.google.protobuf.ByteString getExtraData();
 }

@@ -63,6 +63,8 @@ public class MessagesController {
         long msgId = snowflake.nextId();
         message.setMsgId(msgId);
 
+        message.setSenderId(UserHolder.getCurrent());
+
         // 2. 幂等落库 (req_id 可能重复)
         try {
             iMessagesService.save(message);
@@ -105,6 +107,8 @@ public class MessagesController {
 
         long msgId = snowflake.nextId();
         message.setMsgId(msgId);
+
+        message.setSenderId(UserHolder.getCurrent());
 
         pushMessageToOnlineGateways(message);
 
@@ -178,7 +182,7 @@ public class MessagesController {
         }
 
         MqPayload mqPayload = MqPayload.newBuilder()
-                .setType(EventType.forNumber(message.getChatType()))
+                .setType(EventType.forNumber(message.getMsgType()))
                 .setMsgId(message.getMsgId())
                 .setUserId(receiverId)
                 .setSenderId(message.getSenderId())
@@ -202,21 +206,11 @@ public class MessagesController {
 
     private void sysKickOut(String gatewayId, Long userId, String deviceId) {
 
-        Map<String, Object> map = new HashMap<>();
-        map.put("deviceId", deviceId);
-
-        String content;
-        try {
-            content = objectMapper.writeValueAsString(map);
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException(e);
-        }
-
         // 构造踢人消息
         MqPayload kickOutPayload = MqPayload.newBuilder()
                 .setType(EventType.SYS_KICK_OUT)
                 .setUserId(userId)
-                .setContent(ByteString.copyFrom(content, StandardCharsets.UTF_8))
+                .setContent(ByteString.copyFrom(deviceId, StandardCharsets.UTF_8))
                 .build();
 
         byte[] protobufBytes = kickOutPayload.toByteArray();
@@ -235,8 +229,8 @@ public class MessagesController {
 
     @GetMapping("/sync")
     public Result<List<SyncMessage>> syncMessages(Long cursor, Integer limit) {
-        if (cursor == null) {
-            return Result.fail("参数不完整，userId 和 lastMsgId 必填");
+        if (cursor == null || limit == null) {
+            return Result.fail("参数不完整，cursor 和 limit 必填");
         }
 
         // 安全防御：硬性限制单次最多拉取条数，防止恶意客户端把内存打爆
@@ -255,9 +249,9 @@ public class MessagesController {
 
         List<SyncMessage> syncMessages = messages.stream().map(message ->
                 SyncMessage.builder()
-                        .msgId(String.valueOf(message.getMsgId()))
+                        .msgId(message.getMsgId().toString())
                         .type(message.getMsgType())
-                        .senderId(String.valueOf(message.getSenderId()))
+                        .senderId(message.getSenderId().toString())
                         .content(message.getContent()).build()
         ).toList();
 

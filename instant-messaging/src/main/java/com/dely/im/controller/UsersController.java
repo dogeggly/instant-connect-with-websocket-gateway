@@ -49,7 +49,7 @@ public class UsersController {
      * 注册
      */
     @PostMapping("/register")
-    public Result register(@RequestBody Users users) {
+    public Result<String> register(@RequestBody Users users) {
         String username = users.getUsername();
         String password = users.getPasswordHash();
         if (StrUtil.isBlank(username) || StrUtil.isBlank(password)) {
@@ -69,7 +69,7 @@ public class UsersController {
             }
         }
 
-        return Result.success();
+        return Result.success(users.getUserId().toString());
     }
 
     private boolean isUsernameDuplicate(Throwable throwable) {

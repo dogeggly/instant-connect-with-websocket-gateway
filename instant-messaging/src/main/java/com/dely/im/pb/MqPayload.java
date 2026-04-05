@@ -34,6 +34,7 @@ private static final long serialVersionUID = 0L;
   private MqPayload() {
     type_ = 0;
     content_ = com.google.protobuf.ByteString.EMPTY;
+    extraData_ = com.google.protobuf.ByteString.EMPTY;
   }
 
   public static final com.google.protobuf.Descriptors.Descriptor
@@ -125,6 +126,17 @@ private static final long serialVersionUID = 0L;
     return content_;
   }
 
+  public static final int EXTRA_DATA_FIELD_NUMBER = 6;
+  private com.google.protobuf.ByteString extraData_ = com.google.protobuf.ByteString.EMPTY;
+  /**
+   * <code>bytes extra_data = 6;</code>
+   * @return The extraData.
+   */
+  @java.lang.Override
+  public com.google.protobuf.ByteString getExtraData() {
+    return extraData_;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -153,6 +165,9 @@ private static final long serialVersionUID = 0L;
     }
     if (!content_.isEmpty()) {
       output.writeBytes(5, content_);
+    }
+    if (!extraData_.isEmpty()) {
+      output.writeBytes(6, extraData_);
     }
     getUnknownFields().writeTo(output);
   }
@@ -183,6 +198,10 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeBytesSize(5, content_);
     }
+    if (!extraData_.isEmpty()) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeBytesSize(6, extraData_);
+    }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
     return size;
@@ -207,6 +226,8 @@ private static final long serialVersionUID = 0L;
         != other.getSenderId()) return false;
     if (!getContent()
         .equals(other.getContent())) return false;
+    if (!getExtraData()
+        .equals(other.getExtraData())) return false;
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -231,6 +252,8 @@ private static final long serialVersionUID = 0L;
         getSenderId());
     hash = (37 * hash) + CONTENT_FIELD_NUMBER;
     hash = (53 * hash) + getContent().hashCode();
+    hash = (37 * hash) + EXTRA_DATA_FIELD_NUMBER;
+    hash = (53 * hash) + getExtraData().hashCode();
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -371,6 +394,7 @@ private static final long serialVersionUID = 0L;
       userId_ = 0L;
       senderId_ = 0L;
       content_ = com.google.protobuf.ByteString.EMPTY;
+      extraData_ = com.google.protobuf.ByteString.EMPTY;
       return this;
     }
 
@@ -419,6 +443,9 @@ private static final long serialVersionUID = 0L;
       if (((from_bitField0_ & 0x00000010) != 0)) {
         result.content_ = content_;
       }
+      if (((from_bitField0_ & 0x00000020) != 0)) {
+        result.extraData_ = extraData_;
+      }
     }
 
     @java.lang.Override
@@ -447,6 +474,9 @@ private static final long serialVersionUID = 0L;
       }
       if (!other.getContent().isEmpty()) {
         setContent(other.getContent());
+      }
+      if (!other.getExtraData().isEmpty()) {
+        setExtraData(other.getExtraData());
       }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
@@ -499,6 +529,11 @@ private static final long serialVersionUID = 0L;
               bitField0_ |= 0x00000010;
               break;
             } // case 42
+            case 50: {
+              extraData_ = input.readBytes();
+              bitField0_ |= 0x00000020;
+              break;
+            } // case 50
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -719,6 +754,38 @@ private static final long serialVersionUID = 0L;
     public Builder clearContent() {
       bitField0_ = (bitField0_ & ~0x00000010);
       content_ = getDefaultInstance().getContent();
+      onChanged();
+      return this;
+    }
+
+    private com.google.protobuf.ByteString extraData_ = com.google.protobuf.ByteString.EMPTY;
+    /**
+     * <code>bytes extra_data = 6;</code>
+     * @return The extraData.
+     */
+    @java.lang.Override
+    public com.google.protobuf.ByteString getExtraData() {
+      return extraData_;
+    }
+    /**
+     * <code>bytes extra_data = 6;</code>
+     * @param value The extraData to set.
+     * @return This builder for chaining.
+     */
+    public Builder setExtraData(com.google.protobuf.ByteString value) {
+      if (value == null) { throw new NullPointerException(); }
+      extraData_ = value;
+      bitField0_ |= 0x00000020;
+      onChanged();
+      return this;
+    }
+    /**
+     * <code>bytes extra_data = 6;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearExtraData() {
+      bitField0_ = (bitField0_ & ~0x00000020);
+      extraData_ = getDefaultInstance().getExtraData();
       onChanged();
       return this;
     }
