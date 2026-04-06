@@ -54,3 +54,6 @@ logging:
 
 snowflake:
   datacenter-id: 1
+
+s3:
+  endpoint: http://

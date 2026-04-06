@@ -10,7 +10,6 @@ import com.dely.im.entity.Messages;
 import com.dely.im.service.IMessagesService;
 import com.dely.im.utils.SyncMessage;
 import com.dely.im.utils.UserHolder;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.ByteString;
 import lombok.extern.slf4j.Slf4j;
@@ -52,9 +51,6 @@ public class MessagesController {
 
     @Autowired
     private Snowflake snowflake;
-
-    @Autowired
-    private ObjectMapper objectMapper;
 
     @PostMapping("/send")
     public Result sendMessage(@RequestBody Messages message) {
@@ -121,23 +117,19 @@ public class MessagesController {
 
         // 3. 先查 ws:online:{userId}，拿到所有在线设备 deviceId|platform
         String onlineKey = "ws:online:" + receiverId;
-        Set<ZSetOperations.TypedTuple<String>> onlineMembers = stringRedisTemplate.opsForZSet().rangeWithScores(onlineKey, 0, -1);
+        long nowTimestamp = System.currentTimeMillis() / 1000;
+        Set<ZSetOperations.TypedTuple<String>> onlineMembers =
+                stringRedisTemplate.opsForZSet()
+                        .rangeByScoreWithScores(onlineKey, nowTimestamp, Double.POSITIVE_INFINITY);
         if (onlineMembers == null || onlineMembers.isEmpty()) {
             // 说明对方离线，不做任何处理
             return;
         }
 
         Set<String> routeKeys = new HashSet<>();
-        long nowTimestamp = System.currentTimeMillis() / 1000;
 
-        // 4. 再查 ws:route:{userId}:{deviceId}，拿网关地址后直推 /api/push
+        // 4. 再查 ws:route:{userId}:{deviceId}
         for (ZSetOperations.TypedTuple<String> member : onlineMembers) {
-            Double score = member.getScore();
-            if (score == null || score.longValue() < nowTimestamp) {
-                // 网关挂了连接没删但是已过期
-                continue;
-            }
-
             String deviceWithPlatform = member.getValue();
             if (StrUtil.isBlank(deviceWithPlatform)) {
                 continue;
@@ -174,19 +166,12 @@ public class MessagesController {
 
         if (pushTargets.isEmpty()) return;
 
-        String content;
-        try {
-            content = objectMapper.writeValueAsString(message.getContent());
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException(e);
-        }
-
         MqPayload mqPayload = MqPayload.newBuilder()
                 .setType(EventType.forNumber(message.getMsgType()))
                 .setMsgId(message.getMsgId())
                 .setUserId(receiverId)
                 .setSenderId(message.getSenderId())
-                .setContent(ByteString.copyFrom(content, StandardCharsets.UTF_8)).build();
+                .setContent(ByteString.copyFrom(message.getContent(), StandardCharsets.UTF_8)).build();
 
         byte[] protobufBytes = mqPayload.toByteArray();
 

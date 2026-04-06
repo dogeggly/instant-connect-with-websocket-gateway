@@ -73,3 +73,15 @@ CREATE TABLE IF NOT EXISTS sync_cursors
     last_pull_id BIGINT      NOT NULL DEFAULT 0,    -- 最后成功拉取到的 msg_id
     updated_at   TIMESTAMP   NOT NULL DEFAULT NOW() -- 最后拉取时间
 );*/
+
+CREATE TABLE file_record
+(
+    file_id    BIGINT PRIMARY KEY,                 -- 采用 Snowflake ID 方案
+    file_hash  VARCHAR(64)  NOT NULL,              -- 文件的唯一标识 (通常为 SHA256 或 MD5)
+    file_name  VARCHAR(255) NOT NULL,              -- 文件原始名称 (如：design_v1.mp4)
+    file_size  BIGINT       NOT NULL,              -- 文件大小 (字节)
+    object_key VARCHAR(255) NOT NULL,              -- OSS 中的相对路径或对象 Key (如：2026/04/06/hash.mp4)
+    created_at TIMESTAMP    NOT NULL DEFAULT NOW() -- 入库时间
+);
+-- 核心约束：保证同一个文件（通过 Hash 判定）在库中只有一条记录，这是实现“秒传”的关键
+CREATE UNIQUE INDEX IF NOT EXISTS idx_file_record_file_hash ON file_record (file_hash);
