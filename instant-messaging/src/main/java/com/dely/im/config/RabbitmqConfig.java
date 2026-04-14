@@ -2,6 +2,7 @@ package com.dely.im.config;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.DirectExchange;
+import org.springframework.amqp.core.FanoutExchange;
 import org.springframework.boot.autoconfigure.amqp.RabbitTemplateCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -10,14 +11,21 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class RabbitmqConfig {
 
-    public static final String GATEWAY_EXCHANGE = "im.direct.exchange";
+    public static final String DIRECT_EXCHANGE = "im.direct.exchange";
+    public static final String FANOUT_EXCHANGE = "im.fanout.exchange";
 
     @Bean
-    public DirectExchange gatewayExchange() {
+    public DirectExchange directExchange() {
         // 参数：name, durable(持久化), autoDelete(自动删除)
         // 交换机需要持久化，因为它是基础设施
-        log.info("初始化网关交换机");
-        return new DirectExchange(GATEWAY_EXCHANGE, true, false);
+        log.info("初始化网关 direct 交换机");
+        return new DirectExchange(DIRECT_EXCHANGE, true, false);
+    }
+
+    @Bean
+    public FanoutExchange fanoutExchange() {
+        log.info("初始化网关 fanout 交换机");
+        return new FanoutExchange(FANOUT_EXCHANGE, true, false);
     }
 
     @Bean

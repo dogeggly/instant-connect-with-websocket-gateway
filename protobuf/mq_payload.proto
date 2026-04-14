@@ -36,13 +36,15 @@ message MqPayload {
   EventType type = 2;
 
   // 几万、几十万的小数字，就用 int64 (享受 Varint 压缩)
-  int64 user_id = 3;
+  repeated int64 user_ids = 3;
 
   int64 sender_id = 4;
 
-  bytes content = 5;
+  int64 group_id = 5;
 
-  bytes extra_data = 6;
+  bytes content = 6;
+
+  bytes extra_data = 7;
 }
 
 // protoc --java_out=../instant-messaging/src/main/java mq_payload.proto

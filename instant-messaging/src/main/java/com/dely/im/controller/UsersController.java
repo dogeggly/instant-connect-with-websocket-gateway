@@ -178,16 +178,24 @@ public class UsersController {
         String previousKey = "ws:global:" + previousTs;
         String orKey = "ws:global:count:or:" + currentTs + ":" + UUID.randomUUID();
 
-        Long onlineCount = stringRedisTemplate.execute((RedisCallback<Long>) connection -> {
-            byte[] currentKeyBytes = currentKey.getBytes(StandardCharsets.UTF_8);
-            byte[] previousKeyBytes = previousKey.getBytes(StandardCharsets.UTF_8);
-            byte[] orKeyBytes = orKey.getBytes(StandardCharsets.UTF_8);
+        byte[] currentKeyBytes = currentKey.getBytes(StandardCharsets.UTF_8);
+        byte[] previousKeyBytes = previousKey.getBytes(StandardCharsets.UTF_8);
+        byte[] orKeyBytes = orKey.getBytes(StandardCharsets.UTF_8);
 
+        List<Object> pipelineResults = stringRedisTemplate.executePipelined((RedisCallback<Object>) connection -> {
             connection.stringCommands().bitOp(RedisStringCommands.BitOperation.OR, orKeyBytes, currentKeyBytes, previousKeyBytes);
-            Long count = connection.stringCommands().bitCount(orKeyBytes);
+            connection.stringCommands().bitCount(orKeyBytes);
             connection.keyCommands().del(orKeyBytes);
-            return count == null ? 0L : count;
+            return null;
         });
+
+        long onlineCount = 0L;
+        if (pipelineResults.size() > 1) {
+            Object countResult = pipelineResults.get(1);
+            if (countResult instanceof Number number) {
+                onlineCount = number.longValue();
+            }
+        }
 
         return Result.success(onlineCount);
     }

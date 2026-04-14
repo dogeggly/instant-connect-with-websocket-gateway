@@ -2,6 +2,7 @@ package com.dely.im.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.dely.im.entity.Messages;
+import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Select;
 
@@ -18,7 +19,6 @@ import java.util.List;
 @Mapper
 public interface MessagesMapper extends BaseMapper<Messages> {
 
-    @Select("select * from messages where receiver_id = #{userId} and msg_id > #{cursor} limit #{limit}")
-
-    List<Messages> syncMessages(Long userId, Long cursor, int limit);
+    @Insert("insert into messages values (#{msgId}, #{senderId}, #{receiverId}, #{msgType}, #{content}, #{extraData}, #{reqId}) on conflict (req_id) do nothing")
+    void saveMessage(Messages message);
 }

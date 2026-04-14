@@ -18,16 +18,17 @@ type pushPayload struct {
 	Type      int32           `json:"type"`
 	MsgId     string          `json:"msgId"`
 	SenderId  string          `json:"senderId"`
+	GroupId   string          `json:"groupId"`
 	Content   string          `json:"content"`
 	ExtraData json.RawMessage `json:"extraData"`
 }
 
 const (
-	exchangeName = "im.direct.exchange"
-	exchangeType = "direct"
-	queuePrefix  = "ws.queue.node"
-	mqAddr       = "192.168.100.131:5672"
-	mqUsername   = "dogeggly"
+	directExchangeName = "im.direct.exchange"
+	fanoutExchangeName = "im.fnaout.exchange"
+	queuePrefix        = "ws.queue.node"
+	mqAddr             = "192.168.100.131:5672"
+	mqUsername         = "dogeggly"
 )
 
 func initMqConsumer() (*amqp.Connection, *amqp.Channel, <-chan amqp.Delivery, error) {
@@ -44,17 +45,21 @@ func initMqConsumer() (*amqp.Connection, *amqp.Channel, <-chan amqp.Delivery, er
 		return nil, nil, nil, err
 	}
 
-	// 3. 声明总交换机
+	// 3. 声明交换机
 	// 参数：name, kind, durable, autoDelete, internal, noWait, args
 	err = ch.ExchangeDeclare(
-		exchangeName,
-		exchangeType,
+		directExchangeName,
+		"direct",
 		true,  // durable: 必须为 true
 		false, // autoDelete: 必须为 false
 		false,
 		false,
 		nil,
 	)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	err = ch.ExchangeDeclare(fanoutExchangeName, "fanout", true, false, false, false, nil)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -79,10 +84,14 @@ func initMqConsumer() (*amqp.Connection, *amqp.Channel, <-chan amqp.Delivery, er
 	err = ch.QueueBind(
 		queueName,
 		strconv.FormatInt(nodeId, 10), // 路由键就是你的 nodeID
-		exchangeName,
+		directExchangeName,
 		false,
 		nil,
 	)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	err = ch.QueueBind(queueName, "", fanoutExchangeName, false, nil)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -130,14 +139,37 @@ func handlePushPayload(d amqp.Delivery) {
 		return
 	}
 
+	if d.Exchange == fanoutExchangeName {
+		localUserIds := make([]int64, 0, len(mqpl.UserIds))
+		for _, uid := range mqpl.UserIds {
+			userId := strconv.FormatInt(uid, 10)
+			if _, exists := cm.get(userId); exists {
+				localUserIds = append(localUserIds, uid)
+			}
+		}
+
+		if len(localUserIds) == 0 {
+			_ = d.Ack(false)
+			return
+		}
+
+		mqpl.UserIds = localUserIds
+	}
+
 	switch mqpl.Type {
 	case pb.EventType_CHAT_MSG: // 处理普通聊天下发
-		handleChatContent(&mqpl)
-		log.Printf("MQ 推送成功 userId=%d", mqpl.UserId)
+		if d.Exchange == directExchangeName {
+			handleChatContent(mqpl.UserIds[0], &mqpl)
+		} else {
+			for _, uid := range mqpl.UserIds {
+				handleChatContent(uid, &mqpl)
+			}
+		}
+		log.Printf("MQ 推送成功 userId=%d", mqpl.UserIds)
 		_ = d.Ack(false)
 	case pb.EventType_SYS_KICK_OUT: // 处理踢设备下线
 		handleKickContent(&mqpl)
-		log.Printf("MQ 踢设备指令处理完成 userId=%d", mqpl.UserId)
+		log.Printf("MQ 踢设备指令处理完成 userId=%d", mqpl.UserIds[0])
 		_ = d.Ack(false)
 	default:
 		log.Printf("未知的指令类型: %d", mqpl.Type)
@@ -145,8 +177,8 @@ func handlePushPayload(d amqp.Delivery) {
 	}
 }
 
-func handleChatContent(mqpl *pb.MqPayload) {
-	userId := strconv.FormatInt(mqpl.UserId, 10)
+func handleChatContent(uid int64, mqpl *pb.MqPayload) {
+	userId := strconv.FormatInt(uid, 10)
 	clientMap, exists := cm.get(userId)
 	if !exists {
 		log.Printf("目标用户不在当前网关节点，userId=%s", userId)
@@ -157,6 +189,7 @@ func handleChatContent(mqpl *pb.MqPayload) {
 		Type:      int32(mqpl.Type.Number()),
 		MsgId:     strconv.FormatInt(int64(mqpl.MsgId), 10), // 转成字符串发给前端，避免 JS 精度问题
 		SenderId:  strconv.FormatInt(mqpl.SenderId, 10),
+		GroupId:   strconv.FormatInt(mqpl.GroupId, 10),
 		Content:   string(mqpl.Content),
 		ExtraData: mqpl.ExtraData,
 	}
@@ -173,7 +206,7 @@ func handleChatContent(mqpl *pb.MqPayload) {
 }
 
 func handleKickContent(mqpl *pb.MqPayload) {
-	userId := strconv.FormatInt(mqpl.UserId, 10)
+	userId := strconv.FormatInt(mqpl.UserIds[0], 10)
 
 	content := string(mqpl.Content)
 

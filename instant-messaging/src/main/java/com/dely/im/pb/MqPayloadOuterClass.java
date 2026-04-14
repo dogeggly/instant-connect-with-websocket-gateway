@@ -41,14 +41,14 @@ public final class MqPayloadOuterClass extends com.google.protobuf.GeneratedFile
   static {
     java.lang.String[] descriptorData = {
       "\n\020mq_payload.proto\022(instant_messaging_wi" +
-      "th_websocket_gateway\"\247\001\n\tMqPayload\022\016\n\006ms" +
+      "th_websocket_gateway\"\272\001\n\tMqPayload\022\016\n\006ms" +
       "g_id\030\001 \001(\006\022A\n\004type\030\002 \001(\01623.instant_messa" +
-      "ging_with_websocket_gateway.EventType\022\017\n" +
-      "\007user_id\030\003 \001(\003\022\021\n\tsender_id\030\004 \001(\003\022\017\n\007con" +
-      "tent\030\005 \001(\014\022\022\n\nextra_data\030\006 \001(\014*>\n\tEventT" +
-      "ype\022\021\n\rUNKNOWN_EVENT\020\000\022\014\n\010CHAT_MSG\020\001\022\020\n\014" +
-      "SYS_KICK_OUT\020\005B\033\n\016com.dely.im.pbP\001Z\007./pb" +
-      ";pbb\006proto3"
+      "ging_with_websocket_gateway.EventType\022\020\n" +
+      "\010user_ids\030\003 \003(\003\022\021\n\tsender_id\030\004 \001(\003\022\020\n\010gr" +
+      "oup_id\030\005 \001(\003\022\017\n\007content\030\006 \001(\014\022\022\n\nextra_d" +
+      "ata\030\007 \001(\014*>\n\tEventType\022\021\n\rUNKNOWN_EVENT\020" +
+      "\000\022\014\n\010CHAT_MSG\020\001\022\020\n\014SYS_KICK_OUT\020\005B\033\n\016com" +
+      ".dely.im.pbP\001Z\007./pb;pbb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
@@ -59,7 +59,7 @@ public final class MqPayloadOuterClass extends com.google.protobuf.GeneratedFile
     internal_static_instant_messaging_with_websocket_gateway_MqPayload_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessage.FieldAccessorTable(
         internal_static_instant_messaging_with_websocket_gateway_MqPayload_descriptor,
-        new java.lang.String[] { "MsgId", "Type", "UserId", "SenderId", "Content", "ExtraData", });
+        new java.lang.String[] { "MsgId", "Type", "UserIds", "SenderId", "GroupId", "Content", "ExtraData", });
     descriptor.resolveAllFeaturesImmutable();
   }
 

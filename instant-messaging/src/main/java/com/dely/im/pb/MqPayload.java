@@ -33,6 +33,7 @@ private static final long serialVersionUID = 0L;
   }
   private MqPayload() {
     type_ = 0;
+    userIds_ = emptyLongList();
     content_ = com.google.protobuf.ByteString.EMPTY;
     extraData_ = com.google.protobuf.ByteString.EMPTY;
   }
@@ -89,20 +90,47 @@ private static final long serialVersionUID = 0L;
     return result == null ? com.dely.im.pb.EventType.UNRECOGNIZED : result;
   }
 
-  public static final int USER_ID_FIELD_NUMBER = 3;
-  private long userId_ = 0L;
+  public static final int USER_IDS_FIELD_NUMBER = 3;
+  @SuppressWarnings("serial")
+  private com.google.protobuf.Internal.LongList userIds_ =
+      emptyLongList();
   /**
    * <pre>
    * 几万、几十万的小数字，就用 int64 (享受 Varint 压缩)
    * </pre>
    *
-   * <code>int64 user_id = 3;</code>
-   * @return The userId.
+   * <code>repeated int64 user_ids = 3;</code>
+   * @return A list containing the userIds.
    */
   @java.lang.Override
-  public long getUserId() {
-    return userId_;
+  public java.util.List<java.lang.Long>
+      getUserIdsList() {
+    return userIds_;
   }
+  /**
+   * <pre>
+   * 几万、几十万的小数字，就用 int64 (享受 Varint 压缩)
+   * </pre>
+   *
+   * <code>repeated int64 user_ids = 3;</code>
+   * @return The count of userIds.
+   */
+  public int getUserIdsCount() {
+    return userIds_.size();
+  }
+  /**
+   * <pre>
+   * 几万、几十万的小数字，就用 int64 (享受 Varint 压缩)
+   * </pre>
+   *
+   * <code>repeated int64 user_ids = 3;</code>
+   * @param index The index of the element to return.
+   * @return The userIds at the given index.
+   */
+  public long getUserIds(int index) {
+    return userIds_.getLong(index);
+  }
+  private int userIdsMemoizedSerializedSize = -1;
 
   public static final int SENDER_ID_FIELD_NUMBER = 4;
   private long senderId_ = 0L;
@@ -115,10 +143,21 @@ private static final long serialVersionUID = 0L;
     return senderId_;
   }
 
-  public static final int CONTENT_FIELD_NUMBER = 5;
+  public static final int GROUP_ID_FIELD_NUMBER = 5;
+  private long groupId_ = 0L;
+  /**
+   * <code>int64 group_id = 5;</code>
+   * @return The groupId.
+   */
+  @java.lang.Override
+  public long getGroupId() {
+    return groupId_;
+  }
+
+  public static final int CONTENT_FIELD_NUMBER = 6;
   private com.google.protobuf.ByteString content_ = com.google.protobuf.ByteString.EMPTY;
   /**
-   * <code>bytes content = 5;</code>
+   * <code>bytes content = 6;</code>
    * @return The content.
    */
   @java.lang.Override
@@ -126,10 +165,10 @@ private static final long serialVersionUID = 0L;
     return content_;
   }
 
-  public static final int EXTRA_DATA_FIELD_NUMBER = 6;
+  public static final int EXTRA_DATA_FIELD_NUMBER = 7;
   private com.google.protobuf.ByteString extraData_ = com.google.protobuf.ByteString.EMPTY;
   /**
-   * <code>bytes extra_data = 6;</code>
+   * <code>bytes extra_data = 7;</code>
    * @return The extraData.
    */
   @java.lang.Override
@@ -151,23 +190,31 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
+    getSerializedSize();
     if (msgId_ != 0L) {
       output.writeFixed64(1, msgId_);
     }
     if (type_ != com.dely.im.pb.EventType.UNKNOWN_EVENT.getNumber()) {
       output.writeEnum(2, type_);
     }
-    if (userId_ != 0L) {
-      output.writeInt64(3, userId_);
+    if (getUserIdsList().size() > 0) {
+      output.writeUInt32NoTag(26);
+      output.writeUInt32NoTag(userIdsMemoizedSerializedSize);
+    }
+    for (int i = 0; i < userIds_.size(); i++) {
+      output.writeInt64NoTag(userIds_.getLong(i));
     }
     if (senderId_ != 0L) {
       output.writeInt64(4, senderId_);
     }
+    if (groupId_ != 0L) {
+      output.writeInt64(5, groupId_);
+    }
     if (!content_.isEmpty()) {
-      output.writeBytes(5, content_);
+      output.writeBytes(6, content_);
     }
     if (!extraData_.isEmpty()) {
-      output.writeBytes(6, extraData_);
+      output.writeBytes(7, extraData_);
     }
     getUnknownFields().writeTo(output);
   }
@@ -186,21 +233,35 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeEnumSize(2, type_);
     }
-    if (userId_ != 0L) {
-      size += com.google.protobuf.CodedOutputStream
-        .computeInt64Size(3, userId_);
+    {
+      int dataSize = 0;
+      for (int i = 0; i < userIds_.size(); i++) {
+        dataSize += com.google.protobuf.CodedOutputStream
+          .computeInt64SizeNoTag(userIds_.getLong(i));
+      }
+      size += dataSize;
+      if (!getUserIdsList().isEmpty()) {
+        size += 1;
+        size += com.google.protobuf.CodedOutputStream
+            .computeInt32SizeNoTag(dataSize);
+      }
+      userIdsMemoizedSerializedSize = dataSize;
     }
     if (senderId_ != 0L) {
       size += com.google.protobuf.CodedOutputStream
         .computeInt64Size(4, senderId_);
     }
+    if (groupId_ != 0L) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeInt64Size(5, groupId_);
+    }
     if (!content_.isEmpty()) {
       size += com.google.protobuf.CodedOutputStream
-        .computeBytesSize(5, content_);
+        .computeBytesSize(6, content_);
     }
     if (!extraData_.isEmpty()) {
       size += com.google.protobuf.CodedOutputStream
-        .computeBytesSize(6, extraData_);
+        .computeBytesSize(7, extraData_);
     }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
@@ -220,10 +281,12 @@ private static final long serialVersionUID = 0L;
     if (getMsgId()
         != other.getMsgId()) return false;
     if (type_ != other.type_) return false;
-    if (getUserId()
-        != other.getUserId()) return false;
+    if (!getUserIdsList()
+        .equals(other.getUserIdsList())) return false;
     if (getSenderId()
         != other.getSenderId()) return false;
+    if (getGroupId()
+        != other.getGroupId()) return false;
     if (!getContent()
         .equals(other.getContent())) return false;
     if (!getExtraData()
@@ -244,12 +307,16 @@ private static final long serialVersionUID = 0L;
         getMsgId());
     hash = (37 * hash) + TYPE_FIELD_NUMBER;
     hash = (53 * hash) + type_;
-    hash = (37 * hash) + USER_ID_FIELD_NUMBER;
-    hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
-        getUserId());
+    if (getUserIdsCount() > 0) {
+      hash = (37 * hash) + USER_IDS_FIELD_NUMBER;
+      hash = (53 * hash) + getUserIdsList().hashCode();
+    }
     hash = (37 * hash) + SENDER_ID_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
         getSenderId());
+    hash = (37 * hash) + GROUP_ID_FIELD_NUMBER;
+    hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
+        getGroupId());
     hash = (37 * hash) + CONTENT_FIELD_NUMBER;
     hash = (53 * hash) + getContent().hashCode();
     hash = (37 * hash) + EXTRA_DATA_FIELD_NUMBER;
@@ -391,8 +458,9 @@ private static final long serialVersionUID = 0L;
       bitField0_ = 0;
       msgId_ = 0L;
       type_ = 0;
-      userId_ = 0L;
+      userIds_ = emptyLongList();
       senderId_ = 0L;
+      groupId_ = 0L;
       content_ = com.google.protobuf.ByteString.EMPTY;
       extraData_ = com.google.protobuf.ByteString.EMPTY;
       return this;
@@ -435,15 +503,19 @@ private static final long serialVersionUID = 0L;
         result.type_ = type_;
       }
       if (((from_bitField0_ & 0x00000004) != 0)) {
-        result.userId_ = userId_;
+        userIds_.makeImmutable();
+        result.userIds_ = userIds_;
       }
       if (((from_bitField0_ & 0x00000008) != 0)) {
         result.senderId_ = senderId_;
       }
       if (((from_bitField0_ & 0x00000010) != 0)) {
-        result.content_ = content_;
+        result.groupId_ = groupId_;
       }
       if (((from_bitField0_ & 0x00000020) != 0)) {
+        result.content_ = content_;
+      }
+      if (((from_bitField0_ & 0x00000040) != 0)) {
         result.extraData_ = extraData_;
       }
     }
@@ -466,11 +538,22 @@ private static final long serialVersionUID = 0L;
       if (other.type_ != 0) {
         setTypeValue(other.getTypeValue());
       }
-      if (other.getUserId() != 0L) {
-        setUserId(other.getUserId());
+      if (!other.userIds_.isEmpty()) {
+        if (userIds_.isEmpty()) {
+          userIds_ = other.userIds_;
+          userIds_.makeImmutable();
+          bitField0_ |= 0x00000004;
+        } else {
+          ensureUserIdsIsMutable();
+          userIds_.addAll(other.userIds_);
+        }
+        onChanged();
       }
       if (other.getSenderId() != 0L) {
         setSenderId(other.getSenderId());
+      }
+      if (other.getGroupId() != 0L) {
+        setGroupId(other.getGroupId());
       }
       if (!other.getContent().isEmpty()) {
         setContent(other.getContent());
@@ -515,25 +598,41 @@ private static final long serialVersionUID = 0L;
               break;
             } // case 16
             case 24: {
-              userId_ = input.readInt64();
-              bitField0_ |= 0x00000004;
+              long v = input.readInt64();
+              ensureUserIdsIsMutable();
+              userIds_.addLong(v);
               break;
             } // case 24
+            case 26: {
+              int length = input.readRawVarint32();
+              int limit = input.pushLimit(length);
+              ensureUserIdsIsMutable();
+              while (input.getBytesUntilLimit() > 0) {
+                userIds_.addLong(input.readInt64());
+              }
+              input.popLimit(limit);
+              break;
+            } // case 26
             case 32: {
               senderId_ = input.readInt64();
               bitField0_ |= 0x00000008;
               break;
             } // case 32
-            case 42: {
-              content_ = input.readBytes();
+            case 40: {
+              groupId_ = input.readInt64();
               bitField0_ |= 0x00000010;
               break;
-            } // case 42
+            } // case 40
             case 50: {
-              extraData_ = input.readBytes();
+              content_ = input.readBytes();
               bitField0_ |= 0x00000020;
               break;
             } // case 50
+            case 58: {
+              extraData_ = input.readBytes();
+              bitField0_ |= 0x00000040;
+              break;
+            } // case 58
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -650,31 +749,64 @@ private static final long serialVersionUID = 0L;
       return this;
     }
 
-    private long userId_ ;
-    /**
-     * <pre>
-     * 几万、几十万的小数字，就用 int64 (享受 Varint 压缩)
-     * </pre>
-     *
-     * <code>int64 user_id = 3;</code>
-     * @return The userId.
-     */
-    @java.lang.Override
-    public long getUserId() {
-      return userId_;
+    private com.google.protobuf.Internal.LongList userIds_ = emptyLongList();
+    private void ensureUserIdsIsMutable() {
+      if (!userIds_.isModifiable()) {
+        userIds_ = makeMutableCopy(userIds_);
+      }
+      bitField0_ |= 0x00000004;
     }
     /**
      * <pre>
      * 几万、几十万的小数字，就用 int64 (享受 Varint 压缩)
      * </pre>
      *
-     * <code>int64 user_id = 3;</code>
-     * @param value The userId to set.
+     * <code>repeated int64 user_ids = 3;</code>
+     * @return A list containing the userIds.
+     */
+    public java.util.List<java.lang.Long>
+        getUserIdsList() {
+      userIds_.makeImmutable();
+      return userIds_;
+    }
+    /**
+     * <pre>
+     * 几万、几十万的小数字，就用 int64 (享受 Varint 压缩)
+     * </pre>
+     *
+     * <code>repeated int64 user_ids = 3;</code>
+     * @return The count of userIds.
+     */
+    public int getUserIdsCount() {
+      return userIds_.size();
+    }
+    /**
+     * <pre>
+     * 几万、几十万的小数字，就用 int64 (享受 Varint 压缩)
+     * </pre>
+     *
+     * <code>repeated int64 user_ids = 3;</code>
+     * @param index The index of the element to return.
+     * @return The userIds at the given index.
+     */
+    public long getUserIds(int index) {
+      return userIds_.getLong(index);
+    }
+    /**
+     * <pre>
+     * 几万、几十万的小数字，就用 int64 (享受 Varint 压缩)
+     * </pre>
+     *
+     * <code>repeated int64 user_ids = 3;</code>
+     * @param index The index to set the value at.
+     * @param value The userIds to set.
      * @return This builder for chaining.
      */
-    public Builder setUserId(long value) {
+    public Builder setUserIds(
+        int index, long value) {
 
-      userId_ = value;
+      ensureUserIdsIsMutable();
+      userIds_.setLong(index, value);
       bitField0_ |= 0x00000004;
       onChanged();
       return this;
@@ -684,12 +816,47 @@ private static final long serialVersionUID = 0L;
      * 几万、几十万的小数字，就用 int64 (享受 Varint 压缩)
      * </pre>
      *
-     * <code>int64 user_id = 3;</code>
+     * <code>repeated int64 user_ids = 3;</code>
+     * @param value The userIds to add.
      * @return This builder for chaining.
      */
-    public Builder clearUserId() {
+    public Builder addUserIds(long value) {
+
+      ensureUserIdsIsMutable();
+      userIds_.addLong(value);
+      bitField0_ |= 0x00000004;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * 几万、几十万的小数字，就用 int64 (享受 Varint 压缩)
+     * </pre>
+     *
+     * <code>repeated int64 user_ids = 3;</code>
+     * @param values The userIds to add.
+     * @return This builder for chaining.
+     */
+    public Builder addAllUserIds(
+        java.lang.Iterable<? extends java.lang.Long> values) {
+      ensureUserIdsIsMutable();
+      com.google.protobuf.AbstractMessageLite.Builder.addAll(
+          values, userIds_);
+      bitField0_ |= 0x00000004;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * 几万、几十万的小数字，就用 int64 (享受 Varint 压缩)
+     * </pre>
+     *
+     * <code>repeated int64 user_ids = 3;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearUserIds() {
+      userIds_ = emptyLongList();
       bitField0_ = (bitField0_ & ~0x00000004);
-      userId_ = 0L;
       onChanged();
       return this;
     }
@@ -726,9 +893,41 @@ private static final long serialVersionUID = 0L;
       return this;
     }
 
+    private long groupId_ ;
+    /**
+     * <code>int64 group_id = 5;</code>
+     * @return The groupId.
+     */
+    @java.lang.Override
+    public long getGroupId() {
+      return groupId_;
+    }
+    /**
+     * <code>int64 group_id = 5;</code>
+     * @param value The groupId to set.
+     * @return This builder for chaining.
+     */
+    public Builder setGroupId(long value) {
+
+      groupId_ = value;
+      bitField0_ |= 0x00000010;
+      onChanged();
+      return this;
+    }
+    /**
+     * <code>int64 group_id = 5;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearGroupId() {
+      bitField0_ = (bitField0_ & ~0x00000010);
+      groupId_ = 0L;
+      onChanged();
+      return this;
+    }
+
     private com.google.protobuf.ByteString content_ = com.google.protobuf.ByteString.EMPTY;
     /**
-     * <code>bytes content = 5;</code>
+     * <code>bytes content = 6;</code>
      * @return The content.
      */
     @java.lang.Override
@@ -736,23 +935,23 @@ private static final long serialVersionUID = 0L;
       return content_;
     }
     /**
-     * <code>bytes content = 5;</code>
+     * <code>bytes content = 6;</code>
      * @param value The content to set.
      * @return This builder for chaining.
      */
     public Builder setContent(com.google.protobuf.ByteString value) {
       if (value == null) { throw new NullPointerException(); }
       content_ = value;
-      bitField0_ |= 0x00000010;
+      bitField0_ |= 0x00000020;
       onChanged();
       return this;
     }
     /**
-     * <code>bytes content = 5;</code>
+     * <code>bytes content = 6;</code>
      * @return This builder for chaining.
      */
     public Builder clearContent() {
-      bitField0_ = (bitField0_ & ~0x00000010);
+      bitField0_ = (bitField0_ & ~0x00000020);
       content_ = getDefaultInstance().getContent();
       onChanged();
       return this;
@@ -760,7 +959,7 @@ private static final long serialVersionUID = 0L;
 
     private com.google.protobuf.ByteString extraData_ = com.google.protobuf.ByteString.EMPTY;
     /**
-     * <code>bytes extra_data = 6;</code>
+     * <code>bytes extra_data = 7;</code>
      * @return The extraData.
      */
     @java.lang.Override
@@ -768,23 +967,23 @@ private static final long serialVersionUID = 0L;
       return extraData_;
     }
     /**
-     * <code>bytes extra_data = 6;</code>
+     * <code>bytes extra_data = 7;</code>
      * @param value The extraData to set.
      * @return This builder for chaining.
      */
     public Builder setExtraData(com.google.protobuf.ByteString value) {
       if (value == null) { throw new NullPointerException(); }
       extraData_ = value;
-      bitField0_ |= 0x00000020;
+      bitField0_ |= 0x00000040;
       onChanged();
       return this;
     }
     /**
-     * <code>bytes extra_data = 6;</code>
+     * <code>bytes extra_data = 7;</code>
      * @return This builder for chaining.
      */
     public Builder clearExtraData() {
-      bitField0_ = (bitField0_ & ~0x00000020);
+      bitField0_ = (bitField0_ & ~0x00000040);
       extraData_ = getDefaultInstance().getExtraData();
       onChanged();
       return this;

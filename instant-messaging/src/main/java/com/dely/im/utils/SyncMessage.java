@@ -10,7 +10,9 @@ import java.util.Map;
 public class SyncMessage {
     private Integer type;
     private String msgId;
-    private String senderId;
+    private Long senderId;
+    private Long groupId;
+    private Long cursor;
     private String content;
     private Map<String, Object> extraData;
 }

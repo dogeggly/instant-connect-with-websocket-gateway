@@ -2,6 +2,7 @@ package com.dely.im.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.dely.im.entity.Messages;
+import com.dely.im.utils.SyncMessage;
 
 import java.util.List;
 
@@ -15,5 +16,11 @@ import java.util.List;
  */
 public interface IMessagesService extends IService<Messages> {
 
-    List<Messages> syncMessages(Long userId, Long cursor, int limit);
+    List<SyncMessage> syncMessages(Long userId, Long cursor, int limit);
+
+    void saveMessage(Messages message);
+
+    void sendMessageWithoutStore(Messages message);
+
+    void sendGroupMessage(Messages message);
 }

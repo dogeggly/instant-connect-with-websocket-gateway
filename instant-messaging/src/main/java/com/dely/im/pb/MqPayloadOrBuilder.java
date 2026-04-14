@@ -37,10 +37,29 @@ public interface MqPayloadOrBuilder extends
    * 几万、几十万的小数字，就用 int64 (享受 Varint 压缩)
    * </pre>
    *
-   * <code>int64 user_id = 3;</code>
-   * @return The userId.
+   * <code>repeated int64 user_ids = 3;</code>
+   * @return A list containing the userIds.
    */
-  long getUserId();
+  java.util.List<java.lang.Long> getUserIdsList();
+  /**
+   * <pre>
+   * 几万、几十万的小数字，就用 int64 (享受 Varint 压缩)
+   * </pre>
+   *
+   * <code>repeated int64 user_ids = 3;</code>
+   * @return The count of userIds.
+   */
+  int getUserIdsCount();
+  /**
+   * <pre>
+   * 几万、几十万的小数字，就用 int64 (享受 Varint 压缩)
+   * </pre>
+   *
+   * <code>repeated int64 user_ids = 3;</code>
+   * @param index The index of the element to return.
+   * @return The userIds at the given index.
+   */
+  long getUserIds(int index);
 
   /**
    * <code>int64 sender_id = 4;</code>
@@ -49,13 +68,19 @@ public interface MqPayloadOrBuilder extends
   long getSenderId();
 
   /**
-   * <code>bytes content = 5;</code>
+   * <code>int64 group_id = 5;</code>
+   * @return The groupId.
+   */
+  long getGroupId();
+
+  /**
+   * <code>bytes content = 6;</code>
    * @return The content.
    */
   com.google.protobuf.ByteString getContent();
 
   /**
-   * <code>bytes extra_data = 6;</code>
+   * <code>bytes extra_data = 7;</code>
    * @return The extraData.
    */
   com.google.protobuf.ByteString getExtraData();

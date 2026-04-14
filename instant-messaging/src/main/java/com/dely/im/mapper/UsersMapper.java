@@ -18,7 +18,7 @@ import java.util.List;
 @Mapper
 public interface UsersMapper extends BaseMapper<Users> {
 
-    @Select("select * from users " +
+    @Select("select username from users " +
             "where username like concat('%', #{username}, '%') or username % #{username} " +
             "order by (username like concat('%', #{username}, '%')) desc, " +
             "similarity(username, #{username}) desc " +
