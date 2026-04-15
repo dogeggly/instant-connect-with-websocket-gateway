@@ -92,15 +92,18 @@ CREATE TABLE IF NOT EXISTS timeline
     seq_id     BIGINT    NOT NULL,  -- 该用户的全局连续自增游标（拉取消息的绝对凭证）
     PRIMARY KEY (owner_id, seq_id), -- 联合主键，天然防重且自带聚簇索引排序
     msg_id     BIGINT    NOT NULL,  -- 关联全局消息表的外键（信件单号）
+    is_group   BOOLEAN   NOT NULL,  -- 是否为群消息（true: 群消息，false: 单聊消息）
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_timeline_msg_id ON timeline (msg_id);
 
 
 CREATE TABLE IF NOT EXISTS timeline_task
 (
     msg_id      BIGINT PRIMARY KEY, -- 直接用消息ID作为主键
+    sender_id   BIGINT,             -- 发送方用户 ID（如果是单聊也要存进发送者的邮箱里）
     receiver_id BIGINT    NOT NULL, -- 投递接收方（单聊为接收方，群聊为群ID）
-    status      BOOLEAN,            -- 0:待处理, 1:处理中
+    status      BOOLEAN   NOT NULL, -- true:待处理, false:处理中
     is_group    BOOLEAN   NOT NULL, -- 是否为群消息（true: 群消息，false: 单聊消息）
     created_at  TIMESTAMP NOT NULL DEFAULT NOW()
 );

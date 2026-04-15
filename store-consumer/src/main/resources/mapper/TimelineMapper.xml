@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.dely.im.mapper.TimelineMapper">
+
+    <insert id="insertBatch">
+        insert into timeline (owner_id, seq_id, msg_id, is_group)
+        values
+        <foreach collection="timelines" item="item" separator=",">
+            (#{item.ownerId}, #{item.seqId}, #{item.msgId}, #{item.isGroup})
+        </foreach>
+        on conflict (msg_id) do nothing
+    </insert>
+</mapper>

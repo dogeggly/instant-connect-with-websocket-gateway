@@ -31,8 +31,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -78,6 +81,7 @@ public class MessagesServiceImpl extends ServiceImpl<MessagesMapper, Messages> i
         messagesMapper.saveMessage(message);
         timelineTaskMapper.insert(TimelineTask.builder()
                 .msgId(message.getMsgId())
+                .senderId(message.getSenderId())
                 .receiverId(message.getReceiverId())
                 .status(false)
                 .isGroup(false)
@@ -176,33 +180,57 @@ public class MessagesServiceImpl extends ServiceImpl<MessagesMapper, Messages> i
 
     private void pushSingleMessage(Messages message) {
         Long receiverId = message.getReceiverId();
+        Long senderId = message.getSenderId();
 
         // 3. 先查 ws:online:{userId}，拿到所有在线设备 deviceId|platform
-        String onlineKey = "ws:online:" + receiverId;
+        String receiverOnlineKey = "ws:online:" + receiverId;
+        String senderOnlineKey = "ws:online:" + senderId;
         long nowTimestamp = System.currentTimeMillis() / 1000;
-        Set<ZSetOperations.TypedTuple<String>> onlineMembers =
+        Set<ZSetOperations.TypedTuple<String>> receiverOnlineMembers =
                 stringRedisTemplate.opsForZSet()
-                        .rangeByScoreWithScores(onlineKey, nowTimestamp, Double.POSITIVE_INFINITY);
-        if (onlineMembers == null || onlineMembers.isEmpty()) {
-            // 说明对方离线，不做任何处理
+                        .rangeByScoreWithScores(receiverOnlineKey, nowTimestamp, Double.POSITIVE_INFINITY);
+        Set<ZSetOperations.TypedTuple<String>> senderOnlineMembers =
+                stringRedisTemplate.opsForZSet()
+                        .rangeByScoreWithScores(senderOnlineKey, nowTimestamp, Double.POSITIVE_INFINITY);
+
+        if ((receiverOnlineMembers == null || receiverOnlineMembers.isEmpty())
+                && (senderOnlineMembers == null || senderOnlineMembers.isEmpty())) {
+            // 说明对方和自己的其他设备都离线，不做任何处理
             return;
         }
 
         Set<String> routeKeys = new HashSet<>();
 
         // 4. 再查 ws:route:{userId}:{deviceId}
-        for (ZSetOperations.TypedTuple<String> member : onlineMembers) {
-            String deviceWithPlatform = member.getValue();
-            if (StrUtil.isBlank(deviceWithPlatform)) {
-                continue;
+        if (receiverOnlineMembers != null) {
+            for (ZSetOperations.TypedTuple<String> member : receiverOnlineMembers) {
+                String deviceWithPlatform = member.getValue();
+                if (StrUtil.isBlank(deviceWithPlatform)) {
+                    continue;
+                }
+
+                String[] deviceAndPlatform = deviceWithPlatform.split("\\|", 2);
+                String deviceId = deviceAndPlatform[0];
+                // 暂时还没什么用，后续可以根据平台做差异化推送
+                // String platform = deviceAndPlatform[1];
+
+                routeKeys.add("ws:route:" + receiverId + ":" + deviceId);
             }
+        }
 
-            String[] deviceAndPlatform = deviceWithPlatform.split("\\|", 2);
-            String deviceId = deviceAndPlatform[0];
-            // 暂时还没什么用，后续可以根据平台做差异化推送
-            // String platform = deviceAndPlatform[1];
+        if (senderOnlineMembers != null) {
+            for (ZSetOperations.TypedTuple<String> member : senderOnlineMembers) {
+                String deviceWithPlatform = member.getValue();
+                if (StrUtil.isBlank(deviceWithPlatform)) {
+                    continue;
+                }
 
-            routeKeys.add("ws:route:" + receiverId + ":" + deviceId);
+                String[] deviceAndPlatform = deviceWithPlatform.split("\\|", 2);
+                String deviceId = deviceAndPlatform[0];
+                // String platform = deviceAndPlatform[1];
+
+                routeKeys.add("ws:route:" + receiverId + ":" + deviceId);
+            }
         }
 
         if (routeKeys.isEmpty()) return;
@@ -233,7 +261,8 @@ public class MessagesServiceImpl extends ServiceImpl<MessagesMapper, Messages> i
                 .setMsgId(message.getMsgId())
                 .addUserIds(receiverId)
                 .setSenderId(message.getSenderId())
-                .setContent(ByteString.copyFrom(message.getContent(), StandardCharsets.UTF_8)).build();
+                .setContent(ByteString.copyFrom(message.getContent(), StandardCharsets.UTF_8))
+                .build();
 
         byte[] protobufBytes = mqPayload.toByteArray();
 
@@ -267,20 +296,34 @@ public class MessagesServiceImpl extends ServiceImpl<MessagesMapper, Messages> i
             return List.of();
         }
 
-        return messages.stream()
-                .map(message -> SyncMessage.builder()
-                        .type(message.getMsgType())
-                        .msgId(String.valueOf(message.getMsgId()))
-                        .senderId(message.getSenderId())
-                        .groupId(message.getReceiverId() == null ? null : message.getReceiverId())
-                        .cursor(timelines.getFirst().getSeqId()) // 以第一条消息的 seqId 作为下一次拉取的 cursor
-                        .content(message.getContent())
-                        .extraData(message.getExtraData())
-                        .build())
-                .toList();
+        Map<Long, Messages> messageByMsgId = new HashMap<>(messages.size());
+        for (Messages message : messages) {
+            messageByMsgId.put(message.getMsgId(), message);
+        }
+
+        List<SyncMessage> result = new ArrayList<>(timelines.size());
+        for (Timeline timeline : timelines) {
+            Messages message = messageByMsgId.get(timeline.getMsgId());
+            if (message == null) {
+                continue;
+            }
+
+            Long groupId = Boolean.TRUE.equals(timeline.getIsGroup()) ? message.getReceiverId() : null;
+            result.add(SyncMessage.builder()
+                    .type(message.getMsgType())
+                    .msgId(String.valueOf(message.getMsgId()))
+                    .senderId(message.getSenderId())
+                    .groupId(groupId)
+                    .cursor(timeline.getSeqId())
+                    .content(message.getContent())
+                    .extraData(message.getExtraData())
+                    .build());
+        }
+
+        return result;
     }
 
-    private void sysKickOut(String gatewayId, Long userId, String deviceId) {
+    public void sysKickOut(String gatewayId, Long userId, String deviceId) {
 
         // 构造踢人消息
         MqPayload kickOutPayload = MqPayload.newBuilder()

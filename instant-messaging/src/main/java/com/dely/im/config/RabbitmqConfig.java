@@ -13,6 +13,7 @@ public class RabbitmqConfig {
 
     public static final String DIRECT_EXCHANGE = "im.direct.exchange";
     public static final String FANOUT_EXCHANGE = "im.fanout.exchange";
+    public static final String DIRECT_STORE_EXCHANGE = "im.direct.store.exchange";
 
     @Bean
     public DirectExchange directExchange() {
@@ -26,6 +27,12 @@ public class RabbitmqConfig {
     public FanoutExchange fanoutExchange() {
         log.info("初始化网关 fanout 交换机");
         return new FanoutExchange(FANOUT_EXCHANGE, true, false);
+    }
+
+    @Bean
+    public DirectExchange directStoreExchange() {
+        log.info("初始化网关 direct_store 交换机");
+        return new DirectExchange(DIRECT_STORE_EXCHANGE, true, false);
     }
 
     @Bean

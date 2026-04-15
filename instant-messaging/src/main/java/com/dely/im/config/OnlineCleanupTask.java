@@ -20,15 +20,15 @@ public class OnlineCleanupTask {
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
 
-    private static final String TASK_LOCK_KEY = "im:task";
-    private static final long TASK_LOCK_TTL = 60L; // 秒
+    private static final String CLEANUP_TASK_LOCK_KEY = "im:task:cleanup";
+    private static final long CLEANUP_TASK_LOCK_TTL = 60L; // 秒
 
     @Scheduled(cron = "0 */5 * * * *")
     public void cleanupOnlineZSet() {
 
-        // 尝试获取锁，设置 1 分钟 ttl 防止节点时钟漂移
+        // 尝试获取锁，设置 1 分钟 ttl 防止节点时钟漂移，后续也可以不用手动删锁
         Boolean locked = stringRedisTemplate.opsForValue()
-                .setIfAbsent(TASK_LOCK_KEY, "locked", Duration.ofSeconds(TASK_LOCK_TTL));
+                .setIfAbsent(CLEANUP_TASK_LOCK_KEY, "locked", Duration.ofSeconds(CLEANUP_TASK_LOCK_TTL));
 
         // 如果返回 false，说明别的节点已经抢到锁了，当前节点直接退出
         if (Boolean.FALSE.equals(locked)) {

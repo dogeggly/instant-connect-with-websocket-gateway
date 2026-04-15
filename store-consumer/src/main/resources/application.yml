@@ -1,9 +1,9 @@
 server:
-  port: 8000
+  port: 8001
 
 spring:
   application:
-    name: instant-messaging
+    name: store-consumer
   profiles:
     include: secret  # 引入密码配置文件（application-secret.yml）
   datasource:
@@ -17,29 +17,21 @@ spring:
       timeout: 3000ms
       lettuce:
         pool:
-          max-active: 200  # 连接池最大活跃连接数（针对大并发查路由）
+          max-active: 200  # 连接池最大活跃连接数
           max-idle: 50     # 最大空闲连接数
           min-idle: 10     # 最小空闲连接数（保证随时有可用连接，防冷启动抖动）
           max-wait: 1000ms # 当池满时，获取连接的最大等待时间，超时抛异常，触发降级
   rabbitmq:
-    addresses: 192.168.100.131
-    port: 5672
-    username: dogeggly
-    # 设置超时时间
-    connection-timeout: 1000ms
-    # 开启并配置重连策略
-    template:
-      retry:
-        enabled: true
-        initial-interval: 100ms
-        # 最大尝试次数：2次（也就是正常的 1 次发送 + 1 次重试）
-        max-attempts: 2
-        multiplier: 1.0
-      # 开启消息发送失败返回，配合 publisher-returns 使用
-      mandatory: true
-    # 开启消息发送确认，基于异步
-    publisher-confirm-type: correlated
-    publisher-returns: true
+    listener:
+      simple:
+        prefetch: 1 # 每次从队列中获取消息的数量，即客户端必须处理完消息并返回确认信息后mq才会再次投递
+        acknowledge-mode: manual # 保持手动 ACK
+        retry:
+          enabled: true # 开启消费者重试
+          initial-interval: 1000ms # 第一次重试间隔 1 秒
+          multiplier: 2.0 # 每次重试间隔翻倍（指数退避策略）
+          max-interval: 10000ms # 最大间隔 10 秒
+          max-attempts: 3 # 总共尝试 3 次（包含第一次正常消费）
 
 mybatis-plus:
   mapper-locations: classpath:mapper/*.xml
@@ -53,9 +45,3 @@ logging:
       mapper: debug
       service: info
       controller: info
-
-snowflake:
-  datacenter-id: 1
-
-s3:
-  endpoint: http://192.168.100.131:9000

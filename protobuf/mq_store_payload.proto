@@ -1,0 +1,22 @@
+// 指定使用 proto3 语法
+syntax = "proto3";
+
+// 命名空间
+package instant_messaging_with_websocket_gateway;
+
+// ===== 给 Java (Spring Boot) 的配置 =====
+// 指定生成的 Java 类的包名
+option java_package = "com.dely.im.pb";
+// 开启多文件生成
+option java_multiple_files = true;
+
+// 定义真正的消息载荷
+message MqStorePayload {
+  fixed64 msg_id = 1;
+  int64 sender_id = 2;
+  int64 receiver_id = 3;
+  bool is_group = 4;
+}
+
+// protoc --java_out=../instant-messaging/src/main/java mq_store_payload.proto
+// protoc --java_out=../store-consumer/src/main/java mq_store_payload.proto
