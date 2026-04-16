@@ -20,6 +20,7 @@ import com.google.protobuf.ByteString;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageBuilder;
+import org.springframework.amqp.core.MessageDeliveryMode;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -174,7 +175,12 @@ public class MessagesServiceImpl extends ServiceImpl<MessagesMapper, Messages> i
         rabbitTemplate.convertAndSend(
                 RabbitmqConfig.FANOUT_EXCHANGE,
                 "", // fanout 交换机不需要 routing key
-                amqpMessage);
+                amqpMessage,
+                m -> {
+                    // 强行修改为非持久化 (纯内存飞行，极致速度)
+                    m.getMessageProperties().setDeliveryMode(MessageDeliveryMode.NON_PERSISTENT);
+                    return m;
+                });
         log.info("群消息 {} 已推送，载荷: {}", message.getMsgId(), mqPayload);
     }
 
@@ -275,7 +281,12 @@ public class MessagesServiceImpl extends ServiceImpl<MessagesMapper, Messages> i
             rabbitTemplate.convertAndSend(
                     RabbitmqConfig.DIRECT_EXCHANGE,
                     gatewayId,
-                    amqpMessage);
+                    amqpMessage,
+                    m -> {
+                        // 强行修改为非持久化 (纯内存飞行，极致速度)
+                        m.getMessageProperties().setDeliveryMode(MessageDeliveryMode.NON_PERSISTENT);
+                        return m;
+                    });
             log.info("消息 {} 发送到网关 {} 进行推送，载荷: {}", message.getMsgId(), gatewayId, mqPayload);
         }
     }

@@ -15,6 +15,7 @@ import org.springframework.amqp.rabbit.annotation.Queue;
 import org.springframework.amqp.rabbit.annotation.QueueBinding;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.connection.StringRedisConnection;
@@ -44,6 +45,29 @@ public class RabbitmqListener {
     private static final String STORE_QUEUE = "im.store.queue";
     private static final String GROUP_MEMBERS_PREFIX = "im:group_members:";
     private static final String SEQ_ID_PREFIX = "im:seq_id:";
+    private static final long LAST_SEQ_FIELD_TTL_SECONDS = TimeUnit.HOURS.toSeconds(1);
+
+    private static final DefaultRedisScript<List> NEXT_SEQ_ID_BATCH_SCRIPT = new DefaultRedisScript<>(
+            "local msgId = ARGV[1] " +
+                    "local ttlSeconds = tonumber(ARGV[2]) " +
+                    "local ownerCount = #KEYS / 2 " +
+                    "local result = {} " +
+                    "for i = 1, ownerCount do " +
+                    "  local seqKey = KEYS[i] " +
+                    "  local lastHashKey = KEYS[i + ownerCount] " +
+                    "  local existedSeqId = redis.call('HGET', lastHashKey, msgId) " +
+                    "  if existedSeqId then " +
+                    "    table.insert(result, tonumber(existedSeqId)) " +
+                    "  else " +
+                    "    local seqId = redis.call('INCR', seqKey) " +
+                    "    redis.call('HSET', lastHashKey, msgId, seqId) " +
+                    "    redis.call('HEXPIRE', lastHashKey, ttlSeconds, 'FIELDS', 1, msgId) " +
+                    "    table.insert(result, seqId) " +
+                    "  end " +
+                    "end " +
+                    "return result",
+            List.class
+    );
 
     @RabbitListener(bindings = @QueueBinding(
             value = @Queue(value = STORE_QUEUE, durable = "true", autoDelete = "false", exclusive = "false"),
@@ -84,7 +108,7 @@ public class RabbitmqListener {
 
     private void handSingleTimeline(Long msgId, Long receiverId, Long senderId) {
         List<Long> ownerIds = List.of(senderId, receiverId);
-        List<Long> seqIds = nextSeqIdBatch(ownerIds);
+        List<Long> seqIds = nextSeqIdBatch(msgId, ownerIds);
 
         List<Timeline> timelines = new ArrayList<>(2);
         timelines.add(Timeline.builder()
@@ -131,7 +155,7 @@ public class RabbitmqListener {
         }
 
         List<Long> ownerIds = memberIds.stream().map(Long::valueOf).toList();
-        List<Long> seqIds = nextSeqIdBatch(ownerIds);
+        List<Long> seqIds = nextSeqIdBatch(msgId, ownerIds);
 
         List<Timeline> timelines = new ArrayList<>(ownerIds.size());
         for (int index = 0; index < ownerIds.size(); index++) {
@@ -146,14 +170,21 @@ public class RabbitmqListener {
         timelineMapper.insertBatch(timelines);
     }
 
-    private List<Long> nextSeqIdBatch(List<Long> ownerIds) {
-        List<Object> rawResults = stringRedisTemplate.executePipelined((RedisCallback<Object>) connection -> {
-            StringRedisConnection stringConnection = (StringRedisConnection) connection;
-            for (Long ownerId : ownerIds) {
-                stringConnection.incr(SEQ_ID_PREFIX + ownerId);
-            }
-            return null;
-        });
+    private List<Long> nextSeqIdBatch(Long msgId, List<Long> ownerIds) {
+        List<String> keys = new ArrayList<>(ownerIds.size() * 2);
+        for (Long ownerId : ownerIds) {
+            keys.add(SEQ_ID_PREFIX + ownerId);
+        }
+        for (Long ownerId : ownerIds) {
+            keys.add(SEQ_ID_PREFIX + ownerId + ":last");
+        }
+
+        List<Object> rawResults = stringRedisTemplate.execute(
+                NEXT_SEQ_ID_BATCH_SCRIPT,
+                keys,
+                msgId.toString(),
+                String.valueOf(LAST_SEQ_FIELD_TTL_SECONDS)
+        );
 
         if (rawResults.size() != ownerIds.size()) {
             throw new IllegalStateException("批量获取 seqId 失败");
@@ -162,10 +193,10 @@ public class RabbitmqListener {
         List<Long> seqIds = new ArrayList<>(rawResults.size());
         for (int index = 0; index < rawResults.size(); index++) {
             Object raw = rawResults.get(index);
-            if (!(raw instanceof Number number)) {
+            if (!(raw instanceof Number seqId)) {
                 throw new IllegalStateException("seqId 类型异常, ownerId=" + ownerIds.get(index));
             }
-            seqIds.add(number.longValue());
+            seqIds.add(seqId.longValue());
         }
         return seqIds;
     }
