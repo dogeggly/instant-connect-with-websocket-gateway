@@ -53,6 +53,7 @@ public class FileRecordController {
     private Snowflake snowflake;
 
     private static final String UPLOAD_KEY_PREFIX = "im:upload:";
+    // im:upload:{fileHash}, key = status|uploadId|objectKey
     private static final String BUCKET_NAME = "im-files";
 
     @GetMapping("/init")
@@ -64,17 +65,27 @@ public class FileRecordController {
 
         if (file != null) {
             UploadFileVO uploadFileVO = UploadFileVO.builder()
-                    .status(4).objectKey(file.getObjectKey()).build();
+                    .status(3).objectKey(file.getObjectKey()).build();
             return Result.success(uploadFileVO);
         }
 
         // 【第二道拦截：断点续传判断】
         String redisKey = UPLOAD_KEY_PREFIX + fileHash;
-        Boolean isFirst = redisTemplate.opsForValue().setIfAbsent(redisKey, "1||", Duration.ofSeconds(5));
+        DefaultRedisScript<String> initUploadScript = new DefaultRedisScript<>();
+        initUploadScript.setScriptText(
+                "local value = redis.call('GET', KEYS[1]) " +
+                        "if not value then " +
+                        "  redis.call('SET', KEYS[1], ARGV[1], 'EX', tonumber(ARGV[2])) " +
+                        "  return '0'" +
+                        "end " +
+                        "return value"
+        );
+        initUploadScript.setResultType(String.class);
 
-        if (Boolean.FALSE.equals(isFirst)) {
-            String value = redisTemplate.opsForValue().get(redisKey);
-            String[] v = value.split("\\|");
+        String scriptResult = redisTemplate.execute(initUploadScript, List.of(redisKey), "1||", "10");
+
+        if (!scriptResult.equals("0")) {
+            String[] v = scriptResult.split("\\|");
             String status = v[0];
             String uploadId = v[1];
             String objectKey = v[2];
@@ -84,12 +95,8 @@ public class FileRecordController {
                 return Result.success(UploadFileVO.builder().status(1).build());
             }
             if ("3".equals(status)) {
-                // 说明文件极速合并中
-                return Result.success(UploadFileVO.builder().status(3).build());
-            }
-            if ("4".equals(status)) {
                 // 说明文件已经合并完成了，直接返回成功让前端秒传
-                return Result.success(UploadFileVO.builder().status(4).objectKey(objectKey).build());
+                return Result.success(UploadFileVO.builder().status(3).objectKey(objectKey).build());
             }
 
             // 去 MinIO 查询已经传了哪些分片
@@ -99,14 +106,15 @@ public class FileRecordController {
                     .uploadId(uploadId)
             );
 
-            // 提取已完成的分片号返回给前端
-            List<Integer> partNumber = listPartsResponse.parts().stream()
-                    .map(Part::partNumber)
+            // 提取已完成的分片号和 eTag 返回给前端，后续前端计算还未完成的分片号去申请 url
+            List<UploadFilePartInfo> uploadFilePartInfoList = listPartsResponse.parts().stream()
+                    .map(part -> UploadFilePartInfo.builder()
+                            .partNumber(part.partNumber()).eTag(part.eTag()).build())
                     .toList();
 
             // 需要前端判断一下回传的 partNumber 是否为空
             UploadFileVO uploadFileVO = UploadFileVO.builder()
-                    .status(2).objectKey(objectKey).uploadId(uploadId).partNumber(partNumber).build();
+                    .status(2).objectKey(objectKey).uploadId(uploadId).uploadFilePartInfoList(uploadFilePartInfoList).build();
             return Result.success(uploadFileVO);
         }
 
@@ -159,33 +167,10 @@ public class FileRecordController {
     }
 
     @PostMapping("/complete")
-    public Result<Integer> completeUpload(@RequestBody FileRecord fileRecord,
-                                          String uploadId, List<UploadFilePartInfo> list) {
+    public Result<UploadFileVO> completeUpload(@RequestBody FileRecord fileRecord,
+                                               String uploadId, List<UploadFilePartInfo> list) {
 
-        // 1. 先流转 Redis 里的临时任务的状态
-        String redisKey = UPLOAD_KEY_PREFIX + fileRecord.getFileHash();
-        String expectedValue = "2|" + uploadId + "|" + fileRecord.getObjectKey();
-        DefaultRedisScript<Long> checkUploadScript = new DefaultRedisScript<>();
-        checkUploadScript.setScriptText(
-                "local value = redis.call('GET', KEYS[1]) " +
-                        "if not value then return 0 end " +
-                        "if value ~= ARGV[1] then return -1 end " +
-                        "return 1"
-        );
-        checkUploadScript.setResultType(Long.class);
-
-        long checkResult = redisTemplate.execute(checkUploadScript, List.of(redisKey), expectedValue);
-
-        if (checkResult == 0L) {
-            // redis key 不存在，ttl 过期
-            return Result.success(0);
-        }
-        if (checkResult == -1L) {
-            // redis 值不匹配，被其他线程抢占
-            return Result.success(3);
-        }
-
-        // 2. 将前端传来的 ETag 列表转换成 AWS SDK 需要的对象
+        // 1. 将前端传来的 ETag 列表转换成 AWS SDK 需要的对象
         List<CompletedPart> completedParts = list.stream()
                 .map(p -> CompletedPart.builder()
                         .partNumber(p.getPartNumber())
@@ -197,21 +182,29 @@ public class FileRecordController {
                 .parts(completedParts)
                 .build();
 
-        // 3. 告诉 MinIO 进行文件合并
-        s3Client.completeMultipartUpload(b -> b
-                .bucket(BUCKET_NAME)
-                .key(fileRecord.getObjectKey())
-                .uploadId(uploadId)
-                .multipartUpload(completedUpload));
+        // 2. 告诉 MinIO 进行文件合并
+        try {
+            s3Client.completeMultipartUpload(b -> b
+                    .bucket(BUCKET_NAME)
+                    .key(fileRecord.getObjectKey())
+                    .uploadId(uploadId)
+                    .multipartUpload(completedUpload));
+        } catch (NoSuchUploadException e) {
+            // 走到这里，说明 UploadId 不存在了（可能刚才自己重试合并过，或者被别的并发线程合并了）
+            // 头铁去 MinIO 查一下，这文件到底在不在？
+            s3Client.headObject(b -> b.bucket(BUCKET_NAME).key(fileRecord.getObjectKey()));
+            // 如果没报错，说明文件已经稳稳躺在里面了，把异常吞掉，当作合并成功继续往下走！
+        }
 
-        // 4. 再次流转 Redis 里的临时任务的状态
-        redisTemplate.opsForValue().set(redisKey, "4||" + fileRecord.getObjectKey(), Duration.ofSeconds(20));
-
-        // 5. 合并成功，将元数据落库 (秒传就靠它了)
+        // 3. 合并成功，将元数据落库 (带防并发冲突兜底)
         fileRecord.setFileId(snowflake.nextId());
-        fileRecordService.save(fileRecord);
+        fileRecordService.saveFile(fileRecord);
 
-        return Result.success(4);
+        // 4. 流转 Redis 里的临时任务的状态 (墓碑机制)
+        String redisKey = UPLOAD_KEY_PREFIX + fileRecord.getFileHash();
+        redisTemplate.opsForValue().set(redisKey, "3||" + fileRecord.getObjectKey(), Duration.ofMinutes(1));
+
+        return Result.success(UploadFileVO.builder().status(3).objectKey(fileRecord.getObjectKey()).build());
     }
 
 }

@@ -4,6 +4,7 @@ import com.dely.im.entity.FileRecord;
 import com.dely.im.mapper.FileRecordMapper;
 import com.dely.im.service.IFileRecordService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /**
@@ -17,4 +18,11 @@ import org.springframework.stereotype.Service;
 @Service
 public class FileRecordServiceImpl extends ServiceImpl<FileRecordMapper, FileRecord> implements IFileRecordService {
 
+    @Autowired
+    private FileRecordMapper fileRecordMapper;
+
+    @Override
+    public void saveFile(FileRecord fileRecord) {
+        fileRecordMapper.saveFile(fileRecord);
+    }
 }
