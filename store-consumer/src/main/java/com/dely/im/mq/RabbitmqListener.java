@@ -45,7 +45,7 @@ public class RabbitmqListener {
     private static final String STORE_QUEUE = "im.store.queue";
     private static final String GROUP_MEMBERS_PREFIX = "im:group_members:";
     private static final String SEQ_ID_PREFIX = "im:seq_id:";
-    private static final long LAST_SEQ_FIELD_TTL_SECONDS = TimeUnit.HOURS.toSeconds(1);
+    private static final long LAST_SEQ_FIELD_TTL_SECONDS = TimeUnit.MINUTES.toSeconds(1);
 
     private static final DefaultRedisScript<List> NEXT_SEQ_ID_BATCH_SCRIPT = new DefaultRedisScript<>(
             "local msgId = ARGV[1] " +

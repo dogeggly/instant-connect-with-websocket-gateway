@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.dely.im.mapper.TimelineMapper">
+
+    <select id="syncTombstoneMessages" resultType="com.dely.im.entity.Timeline">
+        select seq_id, msg_id, is_group
+        from timeline
+        where owner_id = #{userId}
+        <foreach collection="tombstoneIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+        order by seq_id desc
+    </select>
+</mapper>

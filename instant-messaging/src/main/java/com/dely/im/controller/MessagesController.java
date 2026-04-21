@@ -88,4 +88,12 @@ public class MessagesController {
 
         return Result.success(syncMessages);
     }
+
+    @GetMapping("/tombstone")
+    public Result<List<SyncMessage>> syncTombstoneMessages(List<Long> tombstoneIds) {
+        Long userId = UserHolder.getCurrent();
+        List<SyncMessage> syncMessages = iMessagesService.syncTombstoneMessages(userId, tombstoneIds);
+        return Result.success(syncMessages);
+    }
+
 }

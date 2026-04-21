@@ -292,8 +292,18 @@ public class MessagesServiceImpl extends ServiceImpl<MessagesMapper, Messages> i
     }
 
     @Override
-    public List<SyncMessage> syncMessages(Long userId, Long cursor, int limit) {
+    public List<SyncMessage> syncMessages(Long userId, Long cursor, Integer limit) {
         List<Timeline> timelines = timelineMapper.syncMessages(userId, cursor, limit);
+        return getSyncMessages(timelines);
+    }
+
+    @Override
+    public List<SyncMessage> syncTombstoneMessages(Long userId, List<Long> tombstoneIds) {
+        List<Timeline> timelines = timelineMapper.syncTombstoneMessages(userId, tombstoneIds);
+        return getSyncMessages(timelines);
+    }
+
+    private List<SyncMessage> getSyncMessages(List<Timeline> timelines) {
         if (timelines == null || timelines.isEmpty()) {
             return List.of();
         }

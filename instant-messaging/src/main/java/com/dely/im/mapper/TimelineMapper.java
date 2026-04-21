@@ -20,4 +20,6 @@ public interface TimelineMapper extends BaseMapper<Timeline> {
 
     @Select("select seq_id, msg_id, is_group from timeline where owner_id = #{userId} and seq_id > #{cursor} order by seq_id desc limit #{limit}")
     List<Timeline> syncMessages(Long userId, Long cursor, int limit);
+
+    List<Timeline> syncTombstoneMessages(Long userId, List<Long> tombstoneIds);
 }

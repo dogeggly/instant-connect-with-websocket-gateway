@@ -2,13 +2,14 @@ package com.dely.im.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.dely.im.entity.Messages;
+import com.dely.im.utils.Result;
 import com.dely.im.utils.SyncMessage;
 
 import java.util.List;
 
 /**
  * <p>
- *  服务类
+ * 服务类
  * </p>
  *
  * @author dely
@@ -16,11 +17,13 @@ import java.util.List;
  */
 public interface IMessagesService extends IService<Messages> {
 
-    List<SyncMessage> syncMessages(Long userId, Long cursor, int limit);
+    List<SyncMessage> syncMessages(Long userId, Long cursor, Integer limit);
 
     void saveMessage(Messages message);
 
     void sendMessageWithoutStore(Messages message);
 
     void sendGroupMessage(Messages message);
+
+    List<SyncMessage> syncTombstoneMessages(Long userId, List<Long> tombstoneIds);
 }
