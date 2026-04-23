@@ -8,6 +8,6 @@
         <foreach collection="timelines" item="item" separator=",">
             (#{item.ownerId}, #{item.seqId}, #{item.msgId}, #{item.isGroup})
         </foreach>
-        on conflict (msg_id) do nothing
+        on conflict (owner_id, seq_id) do nothing
     </insert>
 </mapper>

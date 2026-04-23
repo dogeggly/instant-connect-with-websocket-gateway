@@ -79,12 +79,13 @@ public class StoreTimelineTask {
                         .setContentType("application/x-protobuf")
                         .build();
 
+                CorrelationData cd = new CorrelationData(String.valueOf(task.getMsgId()));
+
                 rabbitTemplate.convertAndSend(
                         RabbitmqConfig.DIRECT_STORE_EXCHANGE,
                         "store",
-                        amqpMessage);
-
-                CorrelationData cd = new CorrelationData(String.valueOf(task.getMsgId()));
+                        amqpMessage,
+                        cd);
                 correlationDataList.add(cd);
             }
 
@@ -127,7 +128,9 @@ public class StoreTimelineTask {
         } finally {
             // 4. 业务完毕，立刻释放锁，看门狗自动销毁
             // Redisson 自己实现了删锁时的 CAS 校验
-            lock.unlock();
+            if (lock.isHeldByCurrentThread()) {
+                lock.unlock();
+            }
         }
     }
 }

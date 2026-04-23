@@ -29,7 +29,12 @@ public class TokenInterceptor implements HandlerInterceptor {
         try {
             log.info("jwt校验:{}", token);
             Claims claims = jwtProperties.parseJWT(token);
-            Long userId = (Long) claims.get("userId");
+            Object userIdValue = claims.get("userId");
+            if (!(userIdValue instanceof Number userIdNumber)) {
+                response.setStatus(401);
+                return false;
+            }
+            Long userId = userIdNumber.longValue();
             UserHolder.setCurrent(userId);
             log.info("当前用户id:{}", userId);
             return true;

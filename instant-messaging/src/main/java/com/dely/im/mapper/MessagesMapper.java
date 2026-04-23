@@ -19,6 +19,6 @@ import java.util.List;
 @Mapper
 public interface MessagesMapper extends BaseMapper<Messages> {
 
-    @Insert("insert into messages values (#{msgId}, #{senderId}, #{receiverId}, #{msgType}, #{content}, #{extraData}, #{reqId}) on conflict (req_id) do nothing")
+    @Insert("insert into messages values (#{msgId}, #{senderId}, #{receiverId}, #{msgType}, #{content}, #{extraData, typeHandler=com.dely.im.utils.PgJsonbTypeHandler}, #{reqId, typeHandler=com.dely.im.utils.PgUuidTypeHandler}) on conflict (req_id) do nothing")
     void saveMessage(Messages message);
 }

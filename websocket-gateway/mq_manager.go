@@ -25,7 +25,7 @@ type pushPayload struct {
 
 const (
 	directExchangeName = "im.direct.exchange"
-	fanoutExchangeName = "im.fnaout.exchange"
+	fanoutExchangeName = "im.fanout.exchange"
 	queuePrefix        = "ws.queue.node"
 	mqAddr             = "192.168.100.131:5672"
 	mqUsername         = "dogeggly"
@@ -158,18 +158,12 @@ func handlePushPayload(d amqp.Delivery) {
 
 	switch mqpl.Type {
 	case pb.EventType_CHAT_MSG: // 处理普通聊天下发
-		if d.Exchange == directExchangeName {
-			handleChatContent(mqpl.UserIds[0], &mqpl)
-		} else {
-			for _, uid := range mqpl.UserIds {
-				handleChatContent(uid, &mqpl)
-			}
+		for _, uid := range mqpl.UserIds {
+			handleChatContent(uid, &mqpl)
 		}
-		log.Printf("MQ 推送成功 userId=%d", mqpl.UserIds)
 		_ = d.Ack(false)
 	case pb.EventType_SYS_KICK_OUT: // 处理踢设备下线
 		handleKickContent(&mqpl)
-		log.Printf("MQ 踢设备指令处理完成 userId=%d", mqpl.UserIds[0])
 		_ = d.Ack(false)
 	default:
 		log.Printf("未知的指令类型: %d", mqpl.Type)
@@ -203,6 +197,8 @@ func handleChatContent(uid int64, mqpl *pb.MqPayload) {
 	for _, client := range clientMap {
 		client.enqueueAndWrite(websocket.TextMessage, pplBytes)
 	}
+
+	log.Printf("MQ 推送成功 userId=%s", userId)
 }
 
 func handleKickContent(mqpl *pb.MqPayload) {

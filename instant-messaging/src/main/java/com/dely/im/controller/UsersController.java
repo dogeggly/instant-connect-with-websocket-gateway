@@ -42,7 +42,7 @@ public class UsersController {
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
 
-    private static final String REFRESH_TOKEN_PREFIX = "ws:refresh:userId:";
+    private static final String REFRESH_TOKEN_PREFIX = "im:refresh:userId:";
     private static final long REFRESH_EXPIRATION_TIME = 7L; // 7天
 
     /**

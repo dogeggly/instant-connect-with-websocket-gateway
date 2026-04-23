@@ -95,7 +95,6 @@ CREATE TABLE IF NOT EXISTS timeline
     is_group   BOOLEAN   NOT NULL,  -- 是否为群消息（true: 群消息，false: 单聊消息）
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
-CREATE UNIQUE INDEX IF NOT EXISTS idx_timeline_msg_id ON timeline (msg_id);
 
 
 CREATE TABLE IF NOT EXISTS timeline_task

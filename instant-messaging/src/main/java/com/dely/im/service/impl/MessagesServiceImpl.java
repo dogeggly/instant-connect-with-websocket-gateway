@@ -23,10 +23,10 @@ import org.springframework.amqp.core.MessageBuilder;
 import org.springframework.amqp.core.MessageDeliveryMode;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.core.task.TaskExecutor;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.connection.StringRedisConnection;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,6 +38,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -72,7 +73,8 @@ public class MessagesServiceImpl extends ServiceImpl<MessagesMapper, Messages> i
     private StringRedisTemplate stringRedisTemplate;
 
     @Autowired
-    private TaskExecutor taskExecutor;
+    @Qualifier("messagePushExecutor")
+    private Executor messagePushExecutor;
 
     private static final String GROUP_MEMBERS_PREFIX = "im:group_members:";
 
@@ -101,6 +103,7 @@ public class MessagesServiceImpl extends ServiceImpl<MessagesMapper, Messages> i
         messagesMapper.saveMessage(message);
         timelineTaskMapper.insert(TimelineTask.builder()
                 .msgId(message.getMsgId())
+                .senderId(message.getSenderId())
                 .receiverId(message.getReceiverId())
                 .status(false)
                 .isGroup(true)
@@ -109,7 +112,7 @@ public class MessagesServiceImpl extends ServiceImpl<MessagesMapper, Messages> i
     }
 
     private void asyncPushMessageToOnlineGateways(Messages message, boolean isGroup) {
-        taskExecutor.execute(() -> {
+        messagePushExecutor.execute(() -> {
             try {
                 if (isGroup) {
                     // 群聊消息：先查 Redis 缓存的组员，没有就查数据库并缓存
@@ -235,7 +238,7 @@ public class MessagesServiceImpl extends ServiceImpl<MessagesMapper, Messages> i
                 String deviceId = deviceAndPlatform[0];
                 // String platform = deviceAndPlatform[1];
 
-                routeKeys.add("ws:route:" + receiverId + ":" + deviceId);
+                routeKeys.add("ws:route:" + senderId + ":" + deviceId);
             }
         }
 
@@ -266,6 +269,7 @@ public class MessagesServiceImpl extends ServiceImpl<MessagesMapper, Messages> i
                 .setType(EventType.forNumber(message.getMsgType()))
                 .setMsgId(message.getMsgId())
                 .addUserIds(receiverId)
+                .addUserIds(senderId)
                 .setSenderId(message.getSenderId())
                 .setContent(ByteString.copyFrom(message.getContent(), StandardCharsets.UTF_8))
                 .build();

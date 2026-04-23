@@ -44,22 +44,31 @@ func (c *client) enqueueAndWrite(msgType int, data []byte) {
 
 	// 2. 如果当前没有人在发包，我就启动一个临时工去发！
 	if c.isWriting.CompareAndSwap(false, true) {
-		c.Lock()
-		oldBuffer := c.buffer
-		c.buffer = nil
-		c.Unlock()
-		go c.flushBuffer(oldBuffer) // 起飞！
+		go c.flushBuffer() // 起飞！
 	}
 }
 
 // 专门负责清空 buffer 的临时工协程（发完就销毁，绝不常驻待命！）
-func (c *client) flushBuffer(buffer []packet) {
-	for _, msg := range buffer {
-		if err := c.WriteMessage(msg.msgType, msg.data); err != nil {
-			_ = c.Close()
+func (c *client) flushBuffer() {
+	for {
+		c.Lock()
+		if len(c.buffer) == 0 {
+			c.isWriting.Store(false)
+			c.Unlock()
+			return
+		}
+
+		batch := c.buffer
+		c.buffer = nil
+		c.Unlock()
+
+		for _, msg := range batch {
+			if err := c.WriteMessage(msg.msgType, msg.data); err != nil {
+				_ = c.Close()
+				return
+			}
 		}
 	}
-	c.isWriting.Store(false)
 }
 
 // 定义 Upgrader
@@ -161,6 +170,9 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 
+	// 注册到时间轮，定期发送 Ping，驱动客户端回 Pong 并续期。
+	tw.registerToTimeWheel(c)
+
 	// 开启死循环，不断读取和发送消息 (Goroutine 的轻量级体现在这里，死循环不会卡死其他用户)
 	for {
 		// 阻塞读取客户端发来的消息
@@ -170,8 +182,8 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 			break // 报错了就跳出循环，触发上面的 defer 关闭连接
 		}
 
-		// 约定客户端只能发来二进制的心跳，客户端不能发 ping 因为 js 被浏览器接管了
-		if messageType != 2 {
+		// 约定客户端只能发来文本帧的心跳，客户端不能发 ping 因为 js 被浏览器接管了
+		if messageType != 1 {
 			continue
 		}
 		// 调试时开启
