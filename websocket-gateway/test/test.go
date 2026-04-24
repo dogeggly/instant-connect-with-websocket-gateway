@@ -9,8 +9,8 @@ import (
 )
 
 const (
-	targetIp       = "127.0.0.1"
-	port           = ":8080"
+	targetIp       = "192.168.100.131"
+	port           = ":8082"
 	maxConnections = 10000
 )
 
