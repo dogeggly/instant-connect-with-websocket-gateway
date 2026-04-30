@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS users
 -- 登录名去重与按用户名极速检索
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users (username);
 -- gin索引的三元组模型扩展
-CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE EXTENSION IF NOT EXISTS pg_bigm;
 CREATE INDEX IF NOT EXISTS trgm_idx_users_username ON users USING gin (username gin_trgm_ops);
 
 

@@ -19,9 +19,9 @@ import java.util.List;
 public interface UsersMapper extends BaseMapper<Users> {
 
     @Select("select username from users " +
-            "where username like concat('%', #{username}, '%') or username % #{username} " +
+            "where username like concat('%', #{username}, '%') or bigm_similarity(username, #{username}) > 0.3 " +
             "order by (username like concat('%', #{username}, '%')) desc, " +
-            "similarity(username, #{username}) desc " +
+            "bigm_similarity(username, #{username}) desc " +
             "limit 10")
     List<Users> searchByNickname(String username);
 }

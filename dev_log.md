@@ -200,11 +200,12 @@
 - 修改若干 bug，发即时消息的线程池，连接发送缓冲区等
 
 # 4.24
+
 - go 网关测压
     - 启动后未连接
-    121978 dogeggly   20   0 1244M 10384  9144 S  0.0  0.1  0:00.28 IMWWS
+      121978 dogeggly 20 0 1244M 10384 9144 S 0.0 0.1 0:00.28 IMWWS
     - 启动后 10000 连接
-    168712 dogeggly   20   0 1512M  234M 10608 S  0.0  2.4  0:06.18 IMWWS
+      168712 dogeggly 20 0 1512M 234M 10608 S 0.0 2.4 0:06.18 IMWWS
     - 平均一个连接 23 kb
     - 本来想测十万连接的，但这里端口有限
 
@@ -217,5 +218,26 @@
     - 回拨时间短，则自旋等待；回拨时间长，借用未来时间，借用空余的 workerId，直接拒绝服务
 
 # 4.27
+
 - 把连接二维 map 改为分片锁
     - 为什么不用 sync.map，因为频繁的删除会导致 read map 的内存无法释放
+
+# 4.30
+
+- 再聊聊状态机
+    - 第一个冲突点是，a 用户先查数据库，发现没有，然后在查缓存前，b 用户合并完了，接着写库和删 redis，最后 a 用户查 redis
+      发现没有，只能重新上传
+    - 第二个冲突点是，a 用户先查数据库和 redis 发现没有，不在 redis 里打标记就去初始化了，这时 b
+      用户也可能进来初始化，更严重的是，最后完成初始化的用户在写
+      redis 时会把先完成初始化的用户写入 redis 的数据覆盖掉
+- 模糊检索
+    - 对于长数据检索，分词成 tsvector 数据结构，用 tsquery 做查询，用 tsrank 去打分（text search）
+
+```sql
+SELECT username, bio
+FROM users
+WHERE bio_tsv @@ websearch_to_tsquery('zhcn', #{keyword})
+ORDER BY ts_rank(bio_tsv, websearch_to_tsquery('zhcn', #{keyword}))
+DESC
+    LIMIT 10;
+```
