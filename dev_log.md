@@ -236,8 +236,27 @@
 ```sql
 SELECT username, bio
 FROM users
-WHERE bio_tsv @@ websearch_to_tsquery('zhcn', #{keyword})
+WHERE bio_tsv @@ websearch_to_tsquery('zhcn'
+    , #{keyword})
 ORDER BY ts_rank(bio_tsv, websearch_to_tsquery('zhcn', #{keyword}))
-DESC
+    DESC
     LIMIT 10;
 ```
+
+# 5.12
+
+- etcd
+    - 为什么选择 etcd，方便后续可能做的配置中心
+    - redis 还做什么，动态路由管理、数据缓存、收割 Outbox 的定时任务锁，因为这个锁的频率很高，且不需要严格保证单点执行，用
+      redis
+      更快
+    - nodeId 的选择，对于 go 网关，其实不需要雪花节点，为了方便就直接拿 etcd 的租约 id 做 nodeId，对于业务层，因为分库分表要用到雪花
+      id，还是得去轮询申请
+- 补充为什么 redis 要用双层路由
+    - 如果把 nodeId 的 deviceId 混在一个 zset 的 member 里的话，在新连接加入时，还需要把整个 zset 取出来，看一下有没有这个
+      deviceId，有的话就覆盖掉 nodeId
+- zset 的过期逻辑
+    - 先给 zset 整体上一个 ttl，每次续期除了改 member 的分数还额外续期整个 zset，如果网关挂了，没人续期 zset 自动释放，如果
+      zset
+      里的设备都下线了也自动释放，如果网关挂了但 zset 里的在其他网关上的设备还在续期，这时就需要让网关在每次续期时在加个
+      ZREMRANGEBYSCORE

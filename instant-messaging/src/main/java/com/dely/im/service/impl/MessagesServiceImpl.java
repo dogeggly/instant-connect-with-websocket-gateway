@@ -191,56 +191,26 @@ public class MessagesServiceImpl extends ServiceImpl<MessagesMapper, Messages> i
         Long receiverId = message.getReceiverId();
         Long senderId = message.getSenderId();
 
-        // 3. 先查 ws:online:{userId}，拿到所有在线设备 deviceId|platform
+        // 用 pipeline 合并两次 ZRANGEBYSCORE 为一次 Redis 往返
         String receiverOnlineKey = "ws:online:" + receiverId;
         String senderOnlineKey = "ws:online:" + senderId;
         long nowTimestamp = System.currentTimeMillis() / 1000;
-        Set<ZSetOperations.TypedTuple<String>> receiverOnlineMembers =
-                stringRedisTemplate.opsForZSet()
-                        .rangeByScoreWithScores(receiverOnlineKey, nowTimestamp, Double.POSITIVE_INFINITY);
-        Set<ZSetOperations.TypedTuple<String>> senderOnlineMembers =
-                stringRedisTemplate.opsForZSet()
-                        .rangeByScoreWithScores(senderOnlineKey, nowTimestamp, Double.POSITIVE_INFINITY);
 
-        if ((receiverOnlineMembers == null || receiverOnlineMembers.isEmpty())
-                && (senderOnlineMembers == null || senderOnlineMembers.isEmpty())) {
-            // 说明对方和自己的其他设备都离线，不做任何处理
-            return;
-        }
+        List<Object> pipelineResults = stringRedisTemplate.executePipelined(
+                (RedisCallback<Object>) connection -> {
+                    StringRedisConnection src = (StringRedisConnection) connection;
+                    src.zRangeByScoreWithScores(
+                            receiverOnlineKey.getBytes(StandardCharsets.UTF_8),
+                            nowTimestamp, Double.POSITIVE_INFINITY);
+                    src.zRangeByScoreWithScores(
+                            senderOnlineKey.getBytes(StandardCharsets.UTF_8),
+                            nowTimestamp, Double.POSITIVE_INFINITY);
+                    return null;
+                });
 
         Set<String> routeKeys = new HashSet<>();
-
-        // 4. 再查 ws:route:{userId}:{deviceId}
-        if (receiverOnlineMembers != null) {
-            for (ZSetOperations.TypedTuple<String> member : receiverOnlineMembers) {
-                String deviceWithPlatform = member.getValue();
-                if (StrUtil.isBlank(deviceWithPlatform)) {
-                    continue;
-                }
-
-                String[] deviceAndPlatform = deviceWithPlatform.split("\\|", 2);
-                String deviceId = deviceAndPlatform[0];
-                // 暂时还没什么用，后续可以根据平台做差异化推送
-                // String platform = deviceAndPlatform[1];
-
-                routeKeys.add("ws:route:" + receiverId + ":" + deviceId);
-            }
-        }
-
-        if (senderOnlineMembers != null) {
-            for (ZSetOperations.TypedTuple<String> member : senderOnlineMembers) {
-                String deviceWithPlatform = member.getValue();
-                if (StrUtil.isBlank(deviceWithPlatform)) {
-                    continue;
-                }
-
-                String[] deviceAndPlatform = deviceWithPlatform.split("\\|", 2);
-                String deviceId = deviceAndPlatform[0];
-                // String platform = deviceAndPlatform[1];
-
-                routeKeys.add("ws:route:" + senderId + ":" + deviceId);
-            }
-        }
+        collectRouteKeys(pipelineResults, 0, receiverId, routeKeys);
+        collectRouteKeys(pipelineResults, 1, senderId, routeKeys);
 
         if (routeKeys.isEmpty()) return;
         List<String> routeValues = stringRedisTemplate.opsForValue().multiGet(routeKeys);
@@ -292,6 +262,19 @@ public class MessagesServiceImpl extends ServiceImpl<MessagesMapper, Messages> i
                         return m;
                     });
             log.info("消息 {} 发送到网关 {} 进行推送，载荷: {}", message.getMsgId(), gatewayId, mqPayload);
+        }
+    }
+
+    private void collectRouteKeys(List<Object> pipelineResults, int index, Long userId, Set<String> routeKeys) {
+        Set<Object> rawSet = (Set<Object>) pipelineResults.get(index);
+        if (rawSet == null || rawSet.isEmpty()) return;
+        for (Object obj : rawSet) {
+            if (obj instanceof ZSetOperations.TypedTuple tuple) {
+                String value = (String) tuple.getValue();
+                if (StrUtil.isBlank(value)) continue;
+                String deviceId = value.split("\\|", 2)[0];
+                routeKeys.add("ws:route:" + userId + ":" + deviceId);
+            }
         }
     }
 

@@ -93,6 +93,7 @@ func (rm *redisManager) globalOnlineOffset(userId string) (int64, error) {
 var registerScript = redis.NewScript(`
 redis.call('SET', KEYS[1], ARGV[1], 'EX', ARGV[2])
 redis.call('ZADD', KEYS[2], ARGV[3], ARGV[4])
+redis.call('EXPIRE', KEYS[2], ARGV[2])
 redis.call('SETBIT', KEYS[3], ARGV[5], 1)
 if redis.call('TTL', KEYS[3]) < 0 then
 	redis.call('EXPIRE', KEYS[3], ARGV[6])
@@ -133,6 +134,8 @@ if current ~= ARGV[1] then
 	return -1
 end
 redis.call('EXPIRE', KEYS[1], ARGV[2])
+redis.call('EXPIRE', KEYS[2], ARGV[2])
+redis.call('ZREMRANGEBYSCORE', KEYS[2], '-inf', ARGV[7])
 redis.call('ZADD', KEYS[2], ARGV[3], ARGV[4])
 redis.call('SETBIT', KEYS[3], ARGV[5], 1)
 if redis.call('TTL', KEYS[3]) < 0 then
@@ -141,7 +144,7 @@ end
 return 1
 `)
 
-func (rm *redisManager) keepAlive(userId, deviceId, platform string, client *client) error {
+func (rm *redisManager) keepAlive(userId, deviceId string, client *client) error {
 	offset, err := rm.globalOnlineOffset(userId)
 	if err != nil {
 		return err
@@ -150,7 +153,6 @@ func (rm *redisManager) keepAlive(userId, deviceId, platform string, client *cli
 	case keepAliveChannel <- keepAliveRequest{
 		userId:   userId,
 		deviceId: deviceId,
-		platform: platform,
 		offset:   offset,
 		client:   client,
 	}:

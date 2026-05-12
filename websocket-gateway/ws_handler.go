@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
 
@@ -31,6 +32,7 @@ type client struct {
 	sync.Mutex // 这把锁只保护这一个连接的写入
 	*websocket.Conn
 	connID    string
+	platform  string
 	isClose   atomic.Bool // 用于时钟轮判断，默认初始化为 false，不用上面的锁轻量一些
 	buffer    []packet
 	isWriting atomic.Bool
@@ -121,8 +123,8 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	connID := snowflakeNode.Generate().String()
-	c := &client{Conn: conn, connID: connID}
+	connID := uuid.NewString()
+	c := &client{Conn: conn, connID: connID, platform: platform}
 	defer func() {
 		c.isClose.Store(true) // 标记连接已关闭，时钟轮会检查这个标记来决定是否续命
 		_ = c.Close()
@@ -158,7 +160,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 			log.Printf("续命 websocket 连接失败 userId=%s deviceId=%s err=%v\n", userId, deviceId, err)
 			return err
 		}
-		err = rm.keepAlive(userId, deviceId, platform, c)
+		err = rm.keepAlive(userId, deviceId, c)
 		if err != nil {
 			if errors.Is(err, errKeepAliveQueueFull) {
 				log.Printf("keepalive 队列满，续期失败 userId=%s deviceId=%s\n", userId, deviceId)

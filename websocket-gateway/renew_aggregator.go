@@ -18,7 +18,6 @@ const (
 type keepAliveRequest struct {
 	userId   string
 	deviceId string
-	platform string
 	offset   int64
 	client   *client
 }
@@ -90,9 +89,10 @@ func (rm *redisManager) flushKeepAliveBatch(batch []keepAliveRequest) {
 			rm.routeValue(req.client.connID),
 			int64(routeTTL/time.Second),
 			score,
-			rm.onlineValue(req.deviceId, req.platform),
+			rm.onlineValue(req.deviceId, req.client.platform),
 			req.offset,
 			int64(bitmapTTL/time.Second),
+			now.Unix(),
 		)
 		cmds = append(cmds, keepAliveResult{
 			cmd:    cmd,
