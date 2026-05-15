@@ -29,7 +29,8 @@ func newConnectionManager() *connectionManager {
 func (cm *connectionManager) shard(userId string) *Shard {
 	h := fnv.New32a()
 	_, _ = h.Write([]byte(userId))
-	idx := h.Sum32() % uint32(len(cm.connections))
+	// 注意这里的分片容量一定要是 2 的 n 次方
+	idx := h.Sum32() & (uint32(len(cm.connections)) - 1)
 	return cm.connections[idx]
 }
 

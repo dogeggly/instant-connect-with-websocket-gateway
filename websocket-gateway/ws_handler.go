@@ -19,7 +19,16 @@ import (
 const (
 	// 允许等待客户端 Pong 响应的最大时间。过了这个时间没收到心跳，就踢掉它。
 	pongWait = 60 * time.Second
+	// buffer 复用池的上限，超过这个容量的数组不回收，防止内存囤积
+	maxPooledBufferCap = 128
 )
+
+// bufferPool 跨连接复用 []packet 的底层数组，减少连接变动带来的 GC 压力
+var bufferPool = sync.Pool{
+	New: func() any {
+		return make([]packet, 0, 8)
+	},
+}
 
 type packet struct {
 	msgType int    // websocket.TextMessage 或者是 websocket.PingMessage
@@ -40,7 +49,10 @@ type client struct {
 
 func (c *client) enqueueAndWrite(msgType int, data []byte) {
 	c.Lock()
-	// 1. 先把消息塞进切片排队（解决微突发丢包问题）
+	// 1. buffer 为 nil 时从池子取，跨连接复用底层数组
+	if c.buffer == nil {
+		c.buffer = bufferPool.Get().([]packet)[:0]
+	}
 	c.buffer = append(c.buffer, packet{msgType, data})
 	c.Unlock()
 
@@ -69,6 +81,11 @@ func (c *client) flushBuffer() {
 				_ = c.Close()
 				return
 			}
+		}
+		// 写完归还底层数组到池子，跨连接复用，降低 GC 压力
+		if cap(batch) <= maxPooledBufferCap {
+			clear(batch) // 清掉 data 引用，避免内存泄漏
+			bufferPool.Put(batch[:0])
 		}
 	}
 }
