@@ -102,8 +102,9 @@ CREATE TABLE IF NOT EXISTS timeline_task
     msg_id      BIGINT PRIMARY KEY, -- 直接用消息ID作为主键
     sender_id   BIGINT,             -- 发送方用户 ID（如果是单聊也要存进发送者的邮箱里）
     receiver_id BIGINT    NOT NULL, -- 投递接收方（单聊为接收方，群聊为群ID）
-    status      BOOLEAN   NOT NULL, -- true:待处理, false:处理中
+    status      INTEGER   NOT NULL, -- 0: 待投递，1: 投递中，2: 投递失败
     is_group    BOOLEAN   NOT NULL, -- 是否为群消息（true: 群消息，false: 单聊消息）
+    update_at   TIMESTAMP NOT NULL DEFAULT NOW(),
     created_at  TIMESTAMP NOT NULL DEFAULT NOW()
 );
 

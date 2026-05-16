@@ -1,6 +1,5 @@
 package com.dely.im.config;
 
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.dely.im.entity.TimelineTask;
 import com.dely.im.mapper.TimelineTaskMapper;
@@ -17,6 +16,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
@@ -56,10 +56,11 @@ public class StoreTimelineTask {
             }
 
             // 3. 抢到锁了，看门狗已经在后台帮你保驾护航了
-            // 从本地消息表捞取数据，发 MQ，删数据
-            QueryWrapper<TimelineTask> queryWrapper = new QueryWrapper<>();
-            queryWrapper.eq("status", false);
-            List<TimelineTask> tasks = timelineTaskMapper.selectList(queryWrapper);
+            // 捞出待处理任务（status=0）
+            List<TimelineTask> tasks = timelineTaskMapper.harvest();
+            LocalDateTime compareTime = LocalDateTime.now().minusMinutes(1);
+            List<TimelineTask> processingTasks = timelineTaskMapper.processingHarvest(compareTime);
+            tasks.addAll(processingTasks);
 
             if (tasks.isEmpty()) return;
             List<CorrelationData> correlationDataList = new ArrayList<>(tasks.size());
@@ -105,19 +106,19 @@ public class StoreTimelineTask {
                     // 收到 ACK，但路由失败（触发了 Return）
                     failedIds.add(msgId);
                 } else {
-                    // 没收到 ACK（Broker 内部错误）
-                    // 搁置不删，下一秒重试
-                    log.error("MQ Broker 拒绝了 msg_id: {}", msgId);
+                    // 没收到 ACK，且已经经过一轮重试
+                    // 搁置不删
+                    log.error("MQ 拒绝了 msg_id: {}", msgId);
                 }
             }
 
-            // 批量操作数据库（压榨数据库性能）
+            // 成功 → 删除；失败 → status=2
             if (!successIds.isEmpty()) {
                 timelineTaskMapper.deleteByIds(successIds);
             }
             if (!failedIds.isEmpty()) {
                 UpdateWrapper<TimelineTask> updateWrapper = new UpdateWrapper<>();
-                updateWrapper.in("msg_id", failedIds).set("status", true);
+                updateWrapper.in("msg_id", failedIds).set("status", 2);
                 timelineTaskMapper.update(updateWrapper);
             }
         } catch (InterruptedException e) {

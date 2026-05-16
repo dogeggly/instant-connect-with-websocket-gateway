@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.dely.im.mapper.TimelineTaskMapper">
+
+
+    <select id="harvest" resultType="com.dely.im.entity.TimelineTask" flushCache="true" useCache="false">
+        UPDATE timeline_task
+        SET status    = 1,
+            update_at = NOW()
+        WHERE msg_id IN (SELECT msg_id
+                         FROM timeline_task
+                         WHERE status = 0
+                         LIMIT 100
+                         FOR
+                         UPDATE SKIP LOCKED) RETURNING *;
+    </select>
+</mapper>

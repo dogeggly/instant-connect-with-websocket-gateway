@@ -36,9 +36,11 @@ public class TimelineTask implements Serializable {
 
     private Long receiverId;
 
-    private Boolean status;
+    private Integer status;
 
     private Boolean isGroup;
+
+    private LocalDateTime updateAt;
 
     private LocalDateTime createdAt;
 

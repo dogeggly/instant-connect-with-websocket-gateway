@@ -86,7 +86,7 @@ public class MessagesServiceImpl extends ServiceImpl<MessagesMapper, Messages> i
                 .msgId(message.getMsgId())
                 .senderId(message.getSenderId())
                 .receiverId(message.getReceiverId())
-                .status(false)
+                .status(0)
                 .isGroup(false)
                 .build());
         asyncPushMessageToOnlineGateways(message, false);
@@ -105,7 +105,7 @@ public class MessagesServiceImpl extends ServiceImpl<MessagesMapper, Messages> i
                 .msgId(message.getMsgId())
                 .senderId(message.getSenderId())
                 .receiverId(message.getReceiverId())
-                .status(false)
+                .status(0)
                 .isGroup(true)
                 .build());
         asyncPushMessageToOnlineGateways(message, true);
