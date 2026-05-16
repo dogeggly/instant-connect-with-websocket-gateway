@@ -7,7 +7,7 @@ func cleanupMyRoutes() {
 	var cleaned int
 
 	for _, shard := range cm.connections {
-		shard.RLock()
+		shard.Lock()
 		for userId, devices := range shard.items {
 			for deviceId, c := range devices {
 				if c == nil {
@@ -20,7 +20,7 @@ func cleanupMyRoutes() {
 				cleaned++
 			}
 		}
-		shard.RUnlock()
+		shard.Unlock()
 	}
 
 	log.Printf("清扫完成, nodeId=%d, cleaned=%d", nodeId, cleaned)

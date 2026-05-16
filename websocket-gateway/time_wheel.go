@@ -6,12 +6,7 @@ import (
 	"errors"
 	"sync"
 	"time"
-
-	"github.com/gorilla/websocket"
 )
-
-// 发送 Ping 心跳包的频率。必须小于 pongWait。
-const pingPeriod = 45
 
 // 1. 定义 slot（槽），把锁和数据绑在一起
 type slot struct {
@@ -62,19 +57,20 @@ func (tw *timeWheel) startTimeWheel(ctx context.Context) error {
 				slot.items = list.New()
 				slot.Unlock()
 
-				// 网络 I/O 操作放在锁外
-				go pingSender(oldList, tw.tick)
+				go checkAndKick(oldList)
 			}
 		}
 	}
 }
 
-func pingSender(l *list.List, baseTick int8) {
+func checkAndKick(l *list.List) {
 	if l == nil || l.Len() == 0 {
 		return
 	}
 
+	now := time.Now().Unix()
 	for e := l.Front(); e != nil; {
+		// Remove 会让 e 脱落链表，所以需要先把下一个元素记录下来
 		next := e.Next()
 		c, ok := e.Value.(*client)
 		if !ok || c == nil || c.isClose.Load() {
@@ -83,37 +79,36 @@ func pingSender(l *list.List, baseTick int8) {
 			continue
 		}
 
-		c.enqueueAndWrite(websocket.PingMessage, nil)
+		if now-c.lastHeartbeat.Load() >= 60 {
+			_ = c.Close()
+		} else {
+			rm.keepAlive(c)
+			nextTick := c.lastHeartbeat.Load() % 60
+			nextSlot := tw.slots[nextTick]
+			if nextSlot != nil {
+				nextSlot.Lock()
+				nextSlot.items.PushBack(c)
+				nextSlot.Unlock()
+			}
+		}
+		l.Remove(e)
 		e = next
 	}
-
-	if l.Len() == 0 {
-		return
-	}
-
-	nextTick := (baseTick + pingPeriod) % 60
-	nextSlot := tw.slots[nextTick]
-	if nextSlot == nil {
-		return
-	}
-
-	nextSlot.Lock()
-	nextSlot.items.PushBackList(l)
-	nextSlot.Unlock()
 }
 
-func (tw *timeWheel) registerToTimeWheel(c *client) {
+func (tw *timeWheel) registerToTimeWheel(c *client) error {
 	if c == nil || c.isClose.Load() {
-		return
+		return errors.New("客户端未初始化或已关闭")
 	}
 
-	nextTick := (time.Now().Unix()%60 + pingPeriod) % 60
+	nextTick := time.Now().Unix() % 60
 	slot := tw.slots[nextTick]
 	if slot == nil {
-		return
+		return errors.New("时间轮槽位未初始化")
 	}
 
 	slot.Lock()
 	slot.items.PushBack(c)
 	slot.Unlock()
+	return nil
 }

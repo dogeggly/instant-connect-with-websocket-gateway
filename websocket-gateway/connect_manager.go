@@ -13,7 +13,7 @@ type connectionManager struct {
 }
 
 type Shard struct {
-	sync.RWMutex
+	sync.Mutex
 	items map[string]map[string]*client
 }
 
@@ -76,14 +76,19 @@ func (cm *connectionManager) remove(userId string, deviceId string, c *client) {
 	}
 }
 
-// get 获取指定用户的连接 (读操作，用读锁 RLock，只有当所有读锁释放后，才能上写锁)
+// get 获取指定用户的连接快照（拷贝返回，调用方可安全使用而不需要持锁）
 func (cm *connectionManager) get(userId string) (map[string]*client, bool) {
 	shard := cm.shard(userId)
-	shard.RLock()
-	defer shard.RUnlock()
-	if shard.items[userId] == nil {
+	shard.Lock()
+	defer shard.Unlock()
+	devices, exists := shard.items[userId]
+	if !exists {
 		return nil, false
 	}
-	clientMap, exist := shard.items[userId]
-	return clientMap, exist
+	// 对于内部 map 因为内存也不大，我们直接复制一份交出去
+	result := make(map[string]*client, len(devices))
+	for k, v := range devices {
+		result[k] = v
+	}
+	return result, true
 }

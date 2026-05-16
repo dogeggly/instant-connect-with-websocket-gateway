@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"math/rand/v2"
@@ -17,8 +16,6 @@ import (
 )
 
 const (
-	// 允许等待客户端 Pong 响应的最大时间。过了这个时间没收到心跳，就踢掉它。
-	pongWait = 60 * time.Second
 	// buffer 复用池的上限，超过这个容量的数组不回收，防止内存囤积
 	maxPooledBufferCap = 128
 )
@@ -40,11 +37,14 @@ type packet struct {
 type client struct {
 	sync.Mutex // 这把锁只保护这一个连接的写入
 	*websocket.Conn
-	connID    string
-	platform  string
-	isClose   atomic.Bool // 用于时钟轮判断，默认初始化为 false，不用上面的锁轻量一些
-	buffer    []packet
-	isWriting atomic.Bool
+	connID        string
+	userId        string
+	deviceId      string
+	platform      string
+	isClose       atomic.Bool  // 用于时钟轮判断，默认初始化为 false，不用上面的锁轻量一些
+	lastHeartbeat atomic.Int64 // 其实这里理应不存在并发读写，但还是保险起见上个 atomic
+	buffer        []packet
+	isWriting     atomic.Bool
 }
 
 func (c *client) enqueueAndWrite(msgType int, data []byte) {
@@ -141,7 +141,14 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	connID := uuid.NewString()
-	c := &client{Conn: conn, connID: connID, platform: platform}
+	c := &client{
+		Conn:     conn,
+		connID:   connID,
+		userId:   userId,
+		deviceId: deviceId,
+		platform: platform,
+	}
+	c.lastHeartbeat.Store(time.Now().Unix())
 	defer func() {
 		c.isClose.Store(true) // 标记连接已关闭，时钟轮会检查这个标记来决定是否续命
 		_ = c.Close()
@@ -161,53 +168,26 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	// 设置首次读取的绝对超时时间 (当前时间 + 60秒)
-	err = c.SetReadDeadline(time.Now().Add(pongWait))
-	if err != nil {
-		log.Println("设置读取超时失败:", err)
+	// 注册到时间轮，由时间轮检查心跳超时
+	if err = tw.registerToTimeWheel(c); err != nil {
+		log.Printf("时间轮注册失败，拒绝连接 userId=%s deviceId=%s err=%v\n", userId, deviceId, err)
 		return
 	}
 
-	// 注册 Pong 处理器：一旦收到客户端的 Pong 心跳响应，就续命 60 秒！
-	c.SetPongHandler(func(_ string) error {
-		// 调试时开启
-		// log.Printf("收到 %s 的心跳 Pong 响应，为其续命...\n", userId)
-		err = c.SetReadDeadline(time.Now().Add(pongWait))
-		if err != nil {
-			log.Printf("续命 websocket 连接失败 userId=%s deviceId=%s err=%v\n", userId, deviceId, err)
-			return err
-		}
-		err = rm.keepAlive(userId, deviceId, c)
-		if err != nil {
-			if errors.Is(err, errKeepAliveQueueFull) {
-				log.Printf("keepalive 队列满，续期失败 userId=%s deviceId=%s\n", userId, deviceId)
-				return err
-			}
-			log.Printf("续命 Redis 失败 userId=%s deviceId=%s err=%v\n", userId, deviceId, err)
-			return err
-		}
-		return nil
-	})
-
-	// 注册到时间轮，定期发送 Ping，驱动客户端回 Pong 并续期。
-	tw.registerToTimeWheel(c)
-
-	// 开启死循环，不断读取和发送消息 (Goroutine 的轻量级体现在这里，死循环不会卡死其他用户)
+	// 开启死循环，不断读取消息
 	for {
-		// 阻塞读取客户端发来的消息
 		messageType, p, err := c.ReadMessage()
 		if err != nil {
 			log.Printf("读取用户 %s(%s) 消息失败或客户端主动断开: %v\n", userId, deviceId, err)
-			break // 报错了就跳出循环，触发上面的 defer 关闭连接
+			break
 		}
 
-		// 约定客户端只能发来文本帧的心跳，客户端不能发 ping 因为 js 被浏览器接管了
-		if messageType != 1 {
-			continue
+		// 客户端发来文本帧心跳（浏览器 JS 发不了 WebSocket Ping）
+		if messageType == 1 {
+			c.lastHeartbeat.Store(time.Now().Unix())
+			// 相当于是给客户端回 pong，需要客户端自己去与正常消息做区分
+			c.enqueueAndWrite(messageType, p)
 		}
-		// 调试时开启
-		// log.Printf("收到用户 %s(%s) 心跳\n", userId, deviceId)
-		c.enqueueAndWrite(messageType, p) // 原封不动地写回给客户端
 	}
 }
 

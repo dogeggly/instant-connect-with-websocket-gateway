@@ -144,17 +144,15 @@ end
 return 1
 `)
 
-func (rm *redisManager) keepAlive(userId, deviceId string, client *client) error {
-	offset, err := rm.globalOnlineOffset(userId)
+func (rm *redisManager) keepAlive(client *client) error {
+	offset, err := rm.globalOnlineOffset(client.userId)
 	if err != nil {
 		return err
 	}
 	select {
 	case keepAliveChannel <- keepAliveRequest{
-		userId:   userId,
-		deviceId: deviceId,
-		offset:   offset,
-		client:   client,
+		offset: offset,
+		client: client,
 	}:
 		return nil
 	default:

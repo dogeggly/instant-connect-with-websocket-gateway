@@ -16,10 +16,8 @@ const (
 )
 
 type keepAliveRequest struct {
-	userId   string
-	deviceId string
-	offset   int64
-	client   *client
+	offset int64
+	client *client
 }
 
 var errKeepAliveQueueFull = errors.New("keepalive channel is full")
@@ -72,8 +70,6 @@ func (rm *redisManager) flushKeepAliveBatch(batch []keepAliveRequest) {
 
 	type keepAliveResult struct {
 		cmd    *redis.Cmd
-		userId string
-		device string
 		client *client
 	}
 	// 用于接收批量命令的结果，关联 userId 和 deviceId，方便后续处理
@@ -85,19 +81,17 @@ func (rm *redisManager) flushKeepAliveBatch(batch []keepAliveRequest) {
 		cmd := keepAliveScript.Run(
 			ctx,
 			pipe,
-			[]string{rm.routeKey(req.userId, req.deviceId), rm.onlineKey(req.userId), rm.globalOnlineKey(now)},
+			[]string{rm.routeKey(req.client.userId, req.client.deviceId), rm.onlineKey(req.client.userId), rm.globalOnlineKey(now)},
 			rm.routeValue(req.client.connID),
 			int64(routeTTL/time.Second),
 			score,
-			rm.onlineValue(req.deviceId, req.client.platform),
+			rm.onlineValue(req.client.deviceId, req.client.platform),
 			req.offset,
 			int64(bitmapTTL/time.Second),
 			now.Unix(),
 		)
 		cmds = append(cmds, keepAliveResult{
 			cmd:    cmd,
-			userId: req.userId,
-			device: req.deviceId,
 			client: req.client,
 		})
 	}
@@ -119,11 +113,11 @@ func (rm *redisManager) flushKeepAliveBatch(batch []keepAliveRequest) {
 	for _, item := range cmds {
 		result, err := item.cmd.Int64()
 		if err != nil {
-			log.Printf("keepalive 批量续期命令失败 userId=%s deviceId=%s err=%v", item.userId, item.device, err)
+			log.Printf("keepalive 批量续期命令失败 userId=%s deviceId=%s err=%v", item.client.userId, item.client.deviceId, err)
 			continue
 		}
 		if result == -1 {
-			log.Printf("连接被顶掉，批量续期阶段断开 userId=%s deviceId=%s", item.userId, item.device)
+			log.Printf("连接被顶掉，批量续期阶段断开 userId=%s deviceId=%s", item.client.userId, item.client.deviceId)
 			_ = item.client.Close()
 		}
 	}
