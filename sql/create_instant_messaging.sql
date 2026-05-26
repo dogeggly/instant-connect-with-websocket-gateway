@@ -99,11 +99,11 @@ CREATE TABLE IF NOT EXISTS timeline
 
 CREATE TABLE IF NOT EXISTS timeline_task
 (
-    msg_id      BIGINT PRIMARY KEY, -- 直接用消息ID作为主键
-    sender_id   BIGINT,             -- 发送方用户 ID（如果是单聊也要存进发送者的邮箱里）
-    receiver_id BIGINT    NOT NULL, -- 投递接收方（单聊为接收方，群聊为群ID）
-    status      INTEGER   NOT NULL, -- 0: 待投递，1: 投递中，2: 投递失败
-    is_group    BOOLEAN   NOT NULL, -- 是否为群消息（true: 群消息，false: 单聊消息）
+    msg_id      BIGINT PRIMARY KEY,           -- 直接用消息ID作为主键
+    sender_id   BIGINT    NOT NULL,           -- 发送方用户 ID（如果是单聊也要存进发送者的邮箱里）
+    receiver_id BIGINT    NOT NULL,           -- 投递接收方（单聊为接收方，群聊为群ID）
+    status      INTEGER   NOT NULL DEFAULT 0, -- 0: 待投递，1: 投递中，2: 投递失败
+    is_group    BOOLEAN   NOT NULL,           -- 是否为群消息（true: 群消息，false: 单聊消息）
     update_at   TIMESTAMP NOT NULL DEFAULT NOW(),
     created_at  TIMESTAMP NOT NULL DEFAULT NOW()
 );
@@ -115,7 +115,7 @@ CREATE TABLE IF NOT EXISTS groups
     group_id   BIGINT PRIMARY KEY    DEFAULT NEXTVAL('groups_group_id_seq'), -- 群组唯一 ID（雪花算法）
     group_name VARCHAR(128) NOT NULL,                                        -- 群名称
     owner_id   BIGINT       NOT NULL,                                        -- 群主 ID
-    group_type SMALLINT              DEFAULT 1,                              -- 群类型（1普通群，2大群/广播群等）
+    group_type SMALLINT     NOT NULL DEFAULT 1,                              -- 群类型（1普通群，2大群/广播群等）
     created_at TIMESTAMP    NOT NULL DEFAULT NOW()
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_groups_group_name ON groups (group_name);

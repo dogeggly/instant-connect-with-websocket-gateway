@@ -25,7 +25,7 @@ type etcdManager struct {
 // newEtcdManager 连接 etcd，创建租约。
 func newEtcdManager() (*etcdManager, error) {
 	cli, err := clientv3.New(clientv3.Config{
-		// 实际生成中应考虑集群部署
+		// 实际生产中应考虑集群部署
 		Endpoints:   []string{etcdAddr},
 		DialTimeout: etcdDialTimeout,
 	})

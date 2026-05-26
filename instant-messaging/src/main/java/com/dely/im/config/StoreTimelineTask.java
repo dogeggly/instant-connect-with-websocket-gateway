@@ -5,8 +5,6 @@ import com.dely.im.entity.TimelineTask;
 import com.dely.im.mapper.TimelineTaskMapper;
 import com.dely.im.pb.MqStorePayload;
 import lombok.extern.slf4j.Slf4j;
-import org.redisson.api.RLock;
-import org.redisson.api.RedissonClient;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageBuilder;
 import org.springframework.amqp.rabbit.connection.CorrelationData;
@@ -29,34 +27,15 @@ import java.util.concurrent.TimeoutException;
 public class StoreTimelineTask {
 
     @Autowired
-    private RedissonClient redissonClient;
-
-    @Autowired
     private RabbitTemplate rabbitTemplate;
 
     @Autowired
     private TimelineTaskMapper timelineTaskMapper;
 
-    private static final String STORE_TASK_LOCK_KEY = "im:task:store";
-
-    @Scheduled(fixedDelay = 1000) // 上一次执行完毕后，等 1 秒再执行
+    @Scheduled(fixedDelay = 1000)
     public void storeTimeline() {
-        // 1. 获取锁对象
-        RLock lock = redissonClient.getLock(STORE_TASK_LOCK_KEY);
-
         try {
-            // 2. 尝试抢锁
-            // waitTime = 0: 没抢到立刻放弃，绝不阻塞线程等待！
-            // leaseTime = -1: 不指定过期时间，主动唤醒并依赖 Redisson 的 Watchdog 看门狗机制！
-            boolean isLocked = lock.tryLock(0, -1, TimeUnit.MILLISECONDS);
-
-            if (!isLocked) {
-                // 别人在干活，我直接下班
-                return;
-            }
-
-            // 3. 抢到锁了，看门狗已经在后台帮你保驾护航了
-            // 捞出待处理任务（status=0）
+            // 收割待处理任务：FOR UPDATE SKIP LOCKED 保证多实例不会重复收割
             List<TimelineTask> tasks = timelineTaskMapper.harvest();
             LocalDateTime compareTime = LocalDateTime.now().minusMinutes(1);
             List<TimelineTask> processingTasks = timelineTaskMapper.processingHarvest(compareTime);
@@ -121,17 +100,8 @@ public class StoreTimelineTask {
                 updateWrapper.in("msg_id", failedIds).set("status", 2);
                 timelineTaskMapper.update(updateWrapper);
             }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("抢占 store 锁被中断", e);
-        } catch (ExecutionException | TimeoutException e) {
-            throw new RuntimeException(e);
-        } finally {
-            // 4. 业务完毕，立刻释放锁，看门狗自动销毁
-            // Redisson 自己实现了删锁时的 CAS 校验
-            if (lock.isHeldByCurrentThread()) {
-                lock.unlock();
-            }
+        } catch (InterruptedException | ExecutionException | TimeoutException e) {
+            throw new RuntimeException("收割任务失败：" + e);
         }
     }
 }
