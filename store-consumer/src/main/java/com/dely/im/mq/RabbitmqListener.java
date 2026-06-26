@@ -76,13 +76,18 @@ public class RabbitmqListener {
     ))
     public void listenDirectQueue(Message message, Channel channel) throws IOException {
         long deliveryTag = message.getMessageProperties().getDeliveryTag();
+        Long msgId = null;
+        Long senderId = null;
+        Long receiverId = null;
+        Boolean isGroup = null;
         try {
             MqStorePayload payload = MqStorePayload.parseFrom(message.getBody());
-            Long msgId = payload.getMsgId();
-            Long receiverId = payload.getReceiverId();
-            Long senderId = payload.getSenderId();
+            msgId = payload.getMsgId();
+            senderId = payload.getSenderId();
+            receiverId = payload.getReceiverId();
+            isGroup = payload.getIsGroup();
 
-            if (payload.getIsGroup()) {
+            if (isGroup) {
                 handleGroupTimeline(msgId, receiverId);
             } else {
                 handSingleTimeline(msgId, receiverId, senderId);
@@ -101,7 +106,8 @@ public class RabbitmqListener {
             // 我们不在这里执行 ACK 或 NACK，而是直接往外抛出异常！
             // 异常抛出后，会被 Spring 的 Retry 机制捕获，执行 1s -> 2s 的本地重试。
             // 如果 3 次之后依然失败，Spring 底层会自动向 RabbitMQ 发送 Nack(requeue=false)，消息最终平稳落入死信队列。
-            log.warn("落库遇到临时异常，交由 Spring 进行退避重试...");
+            log.warn("落库遇到临时异常: msgId={}, senderId={}, receiverId={}, isGroup={}",
+                    msgId, senderId, receiverId, isGroup, e);
             throw e;
         }
     }

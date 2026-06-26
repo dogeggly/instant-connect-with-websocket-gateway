@@ -10,6 +10,8 @@ option java_package = "com.dely.im.pb";
 // 开启多文件生成
 option java_multiple_files = true;
 
+option go_package = "loadtest/pb";
+
 // 定义真正的消息载荷
 message MqStorePayload {
   fixed64 msg_id = 1;

@@ -4,6 +4,10 @@
 **/target/
 **/dist/
 **/.claude
+**/.VSCodeCounter
+
+# 压测工具编译产物
+store-consumer/test/load_test.exe
 
 # 敏感配置文件（密码、密钥等）
 **/application-secret.yml
